@@ -1,0 +1,20 @@
+{
+  "name": "marble-maze",
+  "version": "1.0.0",
+  "description": "3D Marble Maze Game - Final Project",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.9"
+  }
+}

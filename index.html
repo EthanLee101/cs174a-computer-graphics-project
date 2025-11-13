@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>3D Marble Maze</title>
+		<style>
+			body { 
+				margin: 0; 
+				overflow: hidden;
+				font-family: Arial, sans-serif;
+			}
+			#info {
+				position: absolute;
+				top: 10px;
+				left: 10px;
+				color: white;
+				background: rgba(0, 0, 0, 0.7);
+				padding: 15px;
+				border-radius: 5px;
+				font-size: 14px;
+				z-index: 100;
+			}
+			#win-message {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				color: white;
+				background: rgba(0, 200, 0, 0.9);
+				padding: 30px 60px;
+				border-radius: 10px;
+				font-size: 48px;
+				font-weight: bold;
+				display: none;
+				z-index: 200;
+				text-align: center;
+			}
+			#win-message button {
+				margin-top: 20px;
+				padding: 10px 30px;
+				font-size: 20px;
+				cursor: pointer;
+				background: white;
+				border: none;
+				border-radius: 5px;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="info">
+			<strong>3D Marble Maze</strong><br>
+			Use arrow keys to tilt platform<br>
+			<br>
+			<strong>Controls:</strong><br>
+			<span style="color: #ff0000;">↑</span> - Tilt <span style="color: #ff0000;">Red</span> Side<br>
+			<span style="color: #ff8800;">↓</span> - Tilt <span style="color: #ff8800;">Orange</span> Side<br>
+			<span style="color: #00aaaa;">←</span> - Tilt <span style="color: #00aaaa;">Teal</span> Side<br>
+			<span style="color: #0000aa;">→</span> - Tilt <span style="color: #0000aa;">Dark Blue</span> Side<br>
+			<span style="color: #ffff00;">Yellow Arrow</span> = Up Direction<br>
+			<br>
+			1 - Top View<br>
+			2 - Side View<br>
+			3 - Angled View<br>
+			0 - Free Orbit<br>
+			R - Reset Marble
+		</div>
+		<div id="win-message">
+			YOU WON!<br>
+			<button onclick="location.reload()">Play Again</button>
+		</div>
+		<script type="module" src="/main.js"></script>
+	</body>
+</html>
