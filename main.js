@@ -351,6 +351,10 @@ function resetMarble() {
     platformTilt.targetX = platformTilt.targetZ = 0;
     platformTilt.currentX = platformTilt.currentZ = 0;
     setCameraView(3);
+    // Respawn collectibles
+    if (typeof spawnCoins === 'function') {
+        spawnCoins();
+    }
 }
 
 resetMarble();
@@ -490,6 +494,9 @@ function checkWinCondition() {
         if (winEl) winEl.style.display = 'block';
         playWinJingle();
         spawnConfetti(goal.position);
+        if (typeof spawnCoins === 'function') {
+            spawnCoins();
+        }
     }
 }
 
