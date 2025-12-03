@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -22,6 +23,30 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
+// Environment map for subtle glossy PBR look
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = envTex;
+
+// Textures (load asynchronously and only apply on success)
+const textureLoader = new THREE.TextureLoader();
+let woodTex = null;
+try {
+    textureLoader.load('885.jpg', (tex) => {
+        tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(2, 2);
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        tex.colorSpace = THREE.SRGBColorSpace;
+        woodTex = tex;
+        if (platform) {
+            platform.material.map = tex;
+            platform.material.needsUpdate = true;
+        }
+    }, undefined, () => {
+        woodTex = null; // keep solid color fallback
+    });
+} catch (e) { woodTex = null; }
+
 // OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
@@ -36,7 +61,7 @@ const clock = new THREE.Clock();
 const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
 directionalLight.position.set(5, 10, 5);
 directionalLight.castShadow = true;
 directionalLight.shadow.camera.left = -15;
@@ -47,11 +72,13 @@ directionalLight.shadow.camera.near = 0.1;
 directionalLight.shadow.camera.far = 50;
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
+directionalLight.shadow.bias = -0.0005;
 scene.add(directionalLight);
 
 const pointLight = new THREE.PointLight(0xffffff, 0.5, 50);
 pointLight.position.set(0, 5, 0);
 scene.add(pointLight);
+
 
 // Platform group (will be rotated for tilt)
 const platformGroup = new THREE.Group();
@@ -61,13 +88,18 @@ scene.add(platformGroup);
 const platformSize = 10;
 const platformGeometry = new THREE.BoxGeometry(platformSize, 0.5, platformSize);
 const platformMaterial = new THREE.MeshPhongMaterial({
-    color: 0x2c3e50,
-    shininess: 30
+    color: 0x8d5524,
+    shininess: 35
 });
 const platform = new THREE.Mesh(platformGeometry, platformMaterial);
 platform.position.y = -0.25;
 platform.receiveShadow = true;
 platformGroup.add(platform);
+// If texture was already loaded before mesh creation, apply it now
+if (woodTex) {
+    platform.material.map = woodTex;
+    platform.material.needsUpdate = true;
+}
 
 // Platform border with color coding
 const borderHeight = 0.5;
@@ -91,7 +123,8 @@ borders.forEach(border => {
     const geometry = new THREE.BoxGeometry(...border.size);
     const material = new THREE.MeshPhongMaterial({
         color: border.color,
-        shininess: 30
+        shininess: 80,
+        specular: 0xffffff
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...border.pos);
@@ -127,7 +160,7 @@ platformGroup.add(zAxisArrow);
 // Maze walls
 const wallMaterial = new THREE.MeshPhongMaterial({
     color: 0x7f8c8d,
-    shininess: 30
+    shininess: 20
 });
 const wallHeight = 0.5;
 const wallThickness = 0.3;
@@ -144,6 +177,7 @@ const walls = [
 ];
 
 const wallMeshes = [];
+const wallData = [];
 walls.forEach(wall => {
     const geometry = new THREE.BoxGeometry(...wall.size);
     const mesh = new THREE.Mesh(geometry, wallMaterial);
@@ -151,9 +185,11 @@ walls.forEach(wall => {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     platformGroup.add(mesh);
-    wallMeshes.push({
-        mesh: mesh,
-        box: new THREE.Box3().setFromObject(mesh)
+    wallMeshes.push({ mesh });
+    const half = { x: wall.size[0] / 2, y: wall.size[1] / 2, z: wall.size[2] / 2 };
+    wallData.push({
+        center: new THREE.Vector3(wall.pos[0], wall.pos[1], wall.pos[2]),
+        half: new THREE.Vector3(half.x, half.y, half.z)
     });
 });
 
@@ -163,8 +199,9 @@ const goalGeometry = new THREE.CylinderGeometry(goalRadius, goalRadius, 0.1, 32)
 const goalMaterial = new THREE.MeshPhongMaterial({
     color: 0x27ae60,
     emissive: 0x27ae60,
-    emissiveIntensity: 0.3,
-    shininess: 100
+    emissiveIntensity: 0.35,
+    shininess: 120,
+    specular: 0xffffff
 });
 const goal = new THREE.Mesh(goalGeometry, goalMaterial);
 goal.position.set(3.5, 0.05, 3.5);
@@ -176,10 +213,10 @@ platformGroup.add(goal);
 const marbleRadius = 0.3;
 const marbleGeometry = new THREE.SphereGeometry(marbleRadius, 32, 32);
 const marbleMaterial = new THREE.MeshPhongMaterial({
-    color: 0xe74c3c,
-    shininess: 100,
+    color: 0xff7aa2,
+    shininess: 140,
     specular: 0xffffff,
-    reflectivity: 0.8
+    reflectivity: 0.9
 });
 const marble = new THREE.Mesh(marbleGeometry, marbleMaterial);
 marble.castShadow = true;
@@ -218,7 +255,18 @@ const keys = {
 
 // Game state
 let gameWon = false;
+let gameLost = false;
+let gameStarted = false;
+let timeRemaining = 90; // seconds (1:30)
 let currentCameraView = 3; // Start with angled view
+
+const timerEl = document.getElementById('timer');
+const scoreEl = document.getElementById('score');
+const winEl = document.getElementById('win-message');
+const loseEl = document.getElementById('lose-message');
+const startOverlayEl = document.getElementById('start-overlay');
+const startBtn = document.getElementById('start-button');
+let score = 0;
 
 // Camera views
 const cameraViews = {
@@ -234,7 +282,15 @@ function resetMarble() {
     marbleState.velocity.set(0, 0, 0);
     marbleState.angularVelocity.set(0, 0, 0);
     gameWon = false;
-    document.getElementById('win-message').style.display = 'none';
+    gameLost = false;
+    gameStarted = false;
+    timeRemaining = 90;
+    score = 0;
+    if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+    if (timerEl) timerEl.textContent = '01:30';
+    if (winEl) winEl.style.display = 'none';
+    if (loseEl) loseEl.style.display = 'none';
+    if (startOverlayEl) startOverlayEl.style.display = 'block';
 }
 
 resetMarble();
@@ -258,6 +314,16 @@ function setCameraView(viewNumber) {
 
 // Initialize with angled view
 setCameraView(3);
+
+// Show start overlay on load
+if (startOverlayEl) startOverlayEl.style.display = 'block';
+if (startBtn) startBtn.addEventListener('click', () => { gameStarted = true; startOverlayEl.style.display = 'none'; });
+window.addEventListener('keydown', (e) => {
+    if (!gameStarted && (e.code === 'Space' || e.key === ' ')) {
+        gameStarted = true;
+        if (startOverlayEl) startOverlayEl.style.display = 'none';
+    }
+});
 
 // Keyboard events
 window.addEventListener('keydown', (event) => {
@@ -291,57 +357,41 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Improved collision detection
+// Improved collision detection in platform local space
 function checkWallCollisions() {
-    wallMeshes.forEach(wall => {
-        // Update wall bounding box based on current platform rotation
-        wall.box.setFromObject(wall.mesh);
-        
-        // Get wall bounds
-        const wallMin = wall.box.min;
-        const wallMax = wall.box.max;
-        
-        // Find closest point on wall box to marble center
-        const closestPoint = new THREE.Vector3(
-            Math.max(wallMin.x, Math.min(marbleState.position.x, wallMax.x)),
-            Math.max(wallMin.y, Math.min(marbleState.position.y, wallMax.y)),
-            Math.max(wallMin.z, Math.min(marbleState.position.z, wallMax.z))
+    for (let i = 0; i < wallData.length; i++) {
+        const w = wallData[i];
+        const c = marbleState.position; // already in platform local space
+        const min = new THREE.Vector3(w.center.x - w.half.x, w.center.y - w.half.y, w.center.z - w.half.z);
+        const max = new THREE.Vector3(w.center.x + w.half.x, w.center.y + w.half.y, w.center.z + w.half.z);
+        const closest = new THREE.Vector3(
+            Math.max(min.x, Math.min(c.x, max.x)),
+            Math.max(min.y, Math.min(c.y, max.y)),
+            Math.max(min.z, Math.min(c.z, max.z))
         );
-        
-        // Calculate distance from marble center to closest point
-        const distance = marbleState.position.distanceTo(closestPoint);
-        
-        // Check if marble is colliding with wall
-        if (distance < marbleRadius) {
-            // Calculate collision normal
-            const collisionNormal = new THREE.Vector3()
-                .subVectors(marbleState.position, closestPoint)
-                .normalize();
-            
-            // If normal is zero (marble center inside wall), use position-based normal
-            if (collisionNormal.length() < 0.001) {
-                const wallCenter = new THREE.Vector3();
-                wall.box.getCenter(wallCenter);
-                collisionNormal.subVectors(marbleState.position, wallCenter).normalize();
+        const delta = new THREE.Vector3().subVectors(c, closest);
+        const dist = delta.length();
+        if (dist < marbleRadius) {
+            let normal = new THREE.Vector3();
+            if (dist > 1e-6) {
+                normal.copy(delta).normalize();
+            } else {
+                const dx = Math.min(Math.abs(c.x - min.x), Math.abs(max.x - c.x));
+                const dz = Math.min(Math.abs(c.z - min.z), Math.abs(max.z - c.z));
+                if (dx < dz) {
+                    normal.set(Math.sign(c.x - w.center.x), 0, 0);
+                } else {
+                    normal.set(0, 0, Math.sign(c.z - w.center.z));
+                }
             }
-            
-            // Push marble out of wall with extra margin
-            const penetrationDepth = marbleRadius - distance;
-            marbleState.position.add(
-                collisionNormal.multiplyScalar(penetrationDepth + 0.01)
-            );
-            
-            // Reflect velocity along collision normal
-            const velocityAlongNormal = marbleState.velocity.dot(collisionNormal);
-            
-            // Only reflect if moving into the wall
-            if (velocityAlongNormal < 0) {
-                marbleState.velocity.sub(
-                    collisionNormal.multiplyScalar(velocityAlongNormal * (1 + BOUNCE_DAMPING))
-                );
+            const penetration = marbleRadius - dist + 0.001;
+            marbleState.position.addScaledVector(normal, penetration);
+            const vN = marbleState.velocity.dot(normal);
+            if (vN < 0) {
+                marbleState.velocity.sub(normal.multiplyScalar(vN * (1 + BOUNCE_DAMPING)));
             }
         }
-    });
+    }
     
     // Check platform boundaries (walls)
     const halfSize = platformSize / 2 - marbleRadius;
@@ -377,61 +427,67 @@ function checkWinCondition() {
     
     if (distanceToGoal < goalRadius && !gameWon) {
         gameWon = true;
-        document.getElementById('win-message').style.display = 'block';
+        if (winEl) winEl.style.display = 'block';
     }
 }
 
 // Physics update
 function updatePhysics(deltaTime) {
-    if (gameWon) return;
+    if (gameWon || gameLost || !gameStarted) return;
     
     // Clamp delta time to prevent large jumps
-    deltaTime = Math.min(deltaTime, 0.1);
+    deltaTime = Math.min(deltaTime, 0.066);
     
-    // Get platform rotation in world space
-    const rotationMatrix = new THREE.Matrix4();
-    rotationMatrix.makeRotationFromEuler(platformGroup.rotation);
-    
-    // Calculate gravity direction based on platform tilt
-    const gravityDir = new THREE.Vector3(0, -1, 0);
-    gravityDir.applyMatrix4(rotationMatrix);
-    
-    // Apply gravity force (project onto platform)
-    // Note: gravityDir points down, so we need to negate to get the force direction
-    const gravityForce = new THREE.Vector3(
-        -gravityDir.x * GRAVITY,
-        0,
-        -gravityDir.z * GRAVITY
-    );
-    
-    // Update velocity
-    marbleState.velocity.add(gravityForce.multiplyScalar(deltaTime));
-    
-    // Apply friction
-    marbleState.velocity.multiplyScalar(FRICTION);
-    
-    // Update position
-    marbleState.position.add(
-        marbleState.velocity.clone().multiplyScalar(deltaTime)
-    );
-    
-    // Keep marble on platform (Y constraint)
-    marbleState.position.y = marbleRadius;
-    
-    // Check collisions
-    checkWallCollisions();
-    
-    // Check win condition
-    checkWinCondition();
-    
-    // Update marble mesh position
-    marble.position.copy(marbleState.position);
-    
-    // Update marble rotation (rolling)
+    // Determine substeps based on speed to avoid tunneling
     const speed = marbleState.velocity.length();
-    if (speed > 0.01) {
+    const desiredStep = Math.max(0.004, Math.min(0.016, (marbleRadius * 0.25) / (speed + 1e-3)));
+    const steps = Math.max(1, Math.min(12, Math.ceil(deltaTime / desiredStep)));
+    const dt = deltaTime / steps;
+    
+    for (let i = 0; i < steps; i++) {
+        // Get platform rotation in world space
+        const rotationMatrix = new THREE.Matrix4();
+        rotationMatrix.makeRotationFromEuler(platformGroup.rotation);
+        
+        // Calculate gravity direction based on platform tilt
+        const gravityDir = new THREE.Vector3(0, -1, 0);
+        gravityDir.applyMatrix4(rotationMatrix);
+        
+        // Apply gravity force (project onto platform)
+        const gravityForce = new THREE.Vector3(
+            -gravityDir.x * GRAVITY,
+            0,
+            -gravityDir.z * GRAVITY
+        );
+        
+        // Semi-implicit Euler integration
+        marbleState.velocity.add(gravityForce.multiplyScalar(dt));
+        marbleState.velocity.multiplyScalar(FRICTION);
+        const prevPos = marbleState.position.clone();
+        marbleState.position.add(marbleState.velocity.clone().multiplyScalar(dt));
+        marbleState.position.y = marbleRadius;
+        
+        // Iterative collision resolution (walls and bounds)
+        for (let iter = 0; iter < 2; iter++) {
+            checkWallCollisions();
+        }
+        
+        // Simple swept correction: if a large correction happened, damp velocity along that axis
+        const delta = marbleState.position.clone().sub(prevPos);
+        if (Math.abs(delta.x) < 1e-3 && Math.abs(marbleState.velocity.x) > 0) marbleState.velocity.x *= 0.7;
+        if (Math.abs(delta.z) < 1e-3 && Math.abs(marbleState.velocity.z) > 0) marbleState.velocity.z *= 0.7;
+        
+        // Win check per substep
+        checkWinCondition();
+        if (gameWon) break;
+    }
+
+    // Update marble mesh position and rolling
+    marble.position.copy(marbleState.position);
+    const spd = marbleState.velocity.length();
+    if (spd > 0.01) {
         const axis = new THREE.Vector3(-marbleState.velocity.z, 0, marbleState.velocity.x).normalize();
-        const angle = speed * deltaTime / marbleRadius;
+        const angle = spd * deltaTime / marbleRadius;
         marble.rotateOnWorldAxis(axis, angle);
     }
 }
@@ -441,6 +497,22 @@ function animate() {
     requestAnimationFrame(animate);
     
     const deltaTime = clock.getDelta();
+    
+    // Timer update
+    if (gameStarted && !gameWon && !gameLost) {
+        timeRemaining -= deltaTime;
+        if (timeRemaining <= 0) {
+            timeRemaining = 0;
+            gameLost = true;
+            if (loseEl) loseEl.style.display = 'block';
+        }
+        if (timerEl) {
+            const t = Math.max(0, Math.floor(timeRemaining));
+            const m = Math.floor(t / 60).toString().padStart(2, '0');
+            const s = (t % 60).toString().padStart(2, '0');
+            timerEl.textContent = `${m}:${s}`;
+        }
+    }
     
     // Update platform tilt based on arrow keys (bounded to prevent upside-down)
     if (keys.ArrowUp) {

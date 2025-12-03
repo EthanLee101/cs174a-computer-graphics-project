@@ -8,17 +8,36 @@
 				margin: 0; 
 				overflow: hidden;
 				font-family: Arial, sans-serif;
+				background: radial-gradient(1200px 600px at 50% 20%, #1f254a 0%, #121424 60%, #0e0f1a 100%);
+			}
+			#hud {
+				position: absolute;
+				top: 10px;
+				left: 50%;
+				transform: translateX(-50%);
+				z-index: 150;
+				pointer-events: none;
+			}
+			#timer {
+				background: rgba(255, 255, 255, 0.85);
+				color: #333;
+				padding: 8px 14px;
+				border-radius: 999px;
+				font-weight: bold;
+				font-size: 16px;
+				box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 			}
 			#info {
 				position: absolute;
 				top: 10px;
 				left: 10px;
 				color: white;
-				background: rgba(0, 0, 0, 0.7);
+				background: rgba(0, 0, 0, 0.55);
 				padding: 15px;
 				border-radius: 5px;
 				font-size: 14px;
 				z-index: 100;
+				box-shadow: 0 8px 24px rgba(0,0,0,0.35);
 			}
 			#win-message {
 				position: absolute;
@@ -26,7 +45,7 @@
 				left: 50%;
 				transform: translate(-50%, -50%);
 				color: white;
-				background: rgba(0, 200, 0, 0.9);
+				background: rgba(60, 180, 75, 0.95);
 				padding: 30px 60px;
 				border-radius: 10px;
 				font-size: 48px;
@@ -34,6 +53,7 @@
 				display: none;
 				z-index: 200;
 				text-align: center;
+				box-shadow: 0 16px 48px rgba(0,0,0,0.45);
 			}
 			#win-message button {
 				margin-top: 20px;
@@ -44,9 +64,34 @@
 				border: none;
 				border-radius: 5px;
 			}
+			#lose-message, #start-overlay {
+				position: absolute;
+				top: 50%;
+				left: 50%;
+				transform: translate(-50%, -50%);
+				background: rgba(0,0,0,0.7);
+				color: #fff;
+				padding: 26px 44px;
+				border-radius: 12px;
+				text-align: center;
+				z-index: 200;
+				box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+			}
+			#lose-message { display: none; }
+			#start-overlay { display: none; }
+			#lose-message h1, #start-overlay h1 { margin: 0 0 10px; }
+			.overlay-actions button {
+				margin: 8px;
+				padding: 10px 20px;
+				font-size: 16px;
+				border-radius: 8px;
+				border: none;
+				cursor: pointer;
+			}
 		</style>
 	</head>
 	<body>
+		<div id="hud"><span id="timer">01:30</span></div>
 		<div id="info">
 			<strong>3D Marble Maze</strong><br>
 			Use arrow keys to tilt platform<br>
@@ -67,6 +112,20 @@
 		<div id="win-message">
 			YOU WON!<br>
 			<button onclick="location.reload()">Play Again</button>
+		</div>
+		<div id="lose-message">
+			<h1>Time's Up!</h1>
+			<p>Try again to reach the goal in time.</p>
+			<div class="overlay-actions">
+				<button onclick="location.reload()">Retry</button>
+			</div>
+		</div>
+		<div id="start-overlay">
+			<h1>Marble Maze</h1>
+			<p>Reach the green goal within 01:30. Press Space to start!</p>
+			<div class="overlay-actions">
+				<button id="start-button">Start</button>
+			</div>
 		</div>
 		<script type="module" src="/main.js"></script>
 	</body>
