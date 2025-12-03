@@ -209,6 +209,33 @@ goal.rotation.x = Math.PI / 2;
 goal.receiveShadow = true;
 platformGroup.add(goal);
 
+// Collectibles (coins) and scoring
+const coinRadius = 0.2;
+const coinHeight = 0.15;
+const coinMaterial = new THREE.MeshPhongMaterial({ color: 0xffd700, emissive: 0x5a3, shininess: 120, specular: 0xffffff });
+const coinPositions = [
+    new THREE.Vector3(-2.5, coinHeight/2, -1.5),
+    new THREE.Vector3(0.5, coinHeight/2, 1.0),
+    new THREE.Vector3(2.5, coinHeight/2, -2.0),
+    new THREE.Vector3(-1.0, coinHeight/2, 2.5)
+];
+const coins = [];
+function spawnCoins() {
+    for (const c of coins) platformGroup.remove(c.mesh);
+    coins.length = 0;
+    for (const p of coinPositions) {
+        const geo = new THREE.CylinderGeometry(coinRadius, coinRadius, coinHeight, 24);
+        const mesh = new THREE.Mesh(geo, coinMaterial);
+        mesh.position.copy(p);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        coins.push({ mesh, taken: false });
+    }
+}
+spawnCoins();
+
 // Marble
 const marbleRadius = 0.3;
 const marbleGeometry = new THREE.SphereGeometry(marbleRadius, 32, 32);
@@ -428,6 +455,45 @@ function checkWinCondition() {
     if (distanceToGoal < goalRadius && !gameWon) {
         gameWon = true;
         if (winEl) winEl.style.display = 'block';
+        playWinJingle();
+        spawnConfetti(goal.position);
+    }
+}
+
+// Simple audio beeps and win jingle
+let audioCtx = null;
+function playBeep(freq, duration) {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration + 0.02);
+    } catch {}
+}
+function playWinJingle() {
+    playBeep(523.25, 0.12);
+    setTimeout(() => playBeep(659.25, 0.12), 140);
+    setTimeout(() => playBeep(783.99, 0.2), 280);
+}
+
+function checkCoins() {
+    for (const c of coins) {
+        if (c.taken) continue;
+        const d = Math.hypot(marbleState.position.x - c.mesh.position.x, marbleState.position.z - c.mesh.position.z);
+        if (d < marbleRadius + coinRadius * 0.8) {
+            c.taken = true;
+            platformGroup.remove(c.mesh);
+            score += 10;
+            if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+            playBeep(880, 0.08);
+        }
     }
 }
 
@@ -537,6 +603,10 @@ function animate() {
     
     // Update physics
     updatePhysics(deltaTime);
+    // Collectibles check
+    if (gameStarted && !gameWon && !gameLost) {
+        checkCoins();
+    }
     
     // Update point light position to follow marble
     pointLight.position.set(
@@ -554,3 +624,56 @@ function animate() {
 }
 
 animate();
+
+// Confetti particles on win
+const confetti = { points: null, velocities: null, life: 0 };
+function spawnConfetti(pos) {
+    const count = 200;
+    const positions = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.random() * 0.2;
+        positions[i*3+0] = pos.x + Math.cos(angle) * r;
+        positions[i*3+1] = pos.y + 0.2 + Math.random() * 0.2;
+        positions[i*3+2] = pos.z + Math.sin(angle) * r;
+        velocities[i*3+0] = (Math.random() - 0.5) * 1.2;
+        velocities[i*3+1] = Math.random() * 1.5 + 0.5;
+        velocities[i*3+2] = (Math.random() - 0.5) * 1.2;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+        colors[i*3+0] = 0.7 + 0.3*Math.random();
+        colors[i*3+1] = 0.7 + 0.3*Math.random();
+        colors[i*3+2] = 0.7 + 0.3*Math.random();
+    }
+    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, opacity: 1.0 });
+    if (confetti.points) platformGroup.remove(confetti.points);
+    confetti.points = new THREE.Points(geom, mat);
+    confetti.velocities = velocities;
+    confetti.life = 2.0;
+    platformGroup.add(confetti.points);
+}
+
+function updateConfetti(dt) {
+    if (!confetti.points || confetti.life <= 0) return;
+    confetti.life -= dt;
+    const positions = confetti.points.geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+        confetti.velocities[i*3+1] -= 3.0 * dt; // gravity
+        positions.array[i*3+0] += confetti.velocities[i*3+0] * dt;
+        positions.array[i*3+1] += confetti.velocities[i*3+1] * dt;
+        positions.array[i*3+2] += confetti.velocities[i*3+2] * dt;
+    }
+    confetti.points.material.opacity = Math.max(0, confetti.life / 2.0);
+    positions.needsUpdate = true;
+    if (confetti.life <= 0) {
+        platformGroup.remove(confetti.points);
+        confetti.points.geometry.dispose();
+        confetti.points.material.dispose();
+        confetti.points = null;
+    }
+}
