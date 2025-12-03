@@ -28,6 +28,29 @@ const pmrem = new THREE.PMREMGenerator(renderer);
 const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environment = envTex;
 
+// Nicer background: radial gradient CanvasTexture (no renderer alpha changes)
+function createGradientBackground() {
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(
+        size * 0.5, size * 0.35, size * 0.2,
+        size * 0.5, size * 0.5, size * 0.7
+    );
+    grad.addColorStop(0, '#222640');
+    grad.addColorStop(1, '#0f1222');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+}
+
+scene.background = createGradientBackground();
+
 // Textures (load asynchronously and only apply on success)
 const textureLoader = new THREE.TextureLoader();
 let woodTex = null;
@@ -212,7 +235,13 @@ platformGroup.add(goal);
 // Collectibles (coins) and scoring
 const coinRadius = 0.2;
 const coinHeight = 0.15;
-const coinMaterial = new THREE.MeshPhongMaterial({ color: 0xffd700, emissive: 0x5a3, shininess: 120, specular: 0xffffff });
+const coinMaterial = new THREE.MeshPhongMaterial({
+    color: 0xffd700,
+    emissive: 0x7f6500,
+    emissiveIntensity: 0.4,
+    shininess: 200,
+    specular: 0xffffff
+});
 const coinPositions = [
     new THREE.Vector3(-2.5, coinHeight/2, -1.5),
     new THREE.Vector3(0.5, coinHeight/2, 1.0),
@@ -318,6 +347,10 @@ function resetMarble() {
     if (winEl) winEl.style.display = 'none';
     if (loseEl) loseEl.style.display = 'none';
     if (startOverlayEl) startOverlayEl.style.display = 'block';
+    // Reset platform tilt and camera view
+    platformTilt.targetX = platformTilt.targetZ = 0;
+    platformTilt.currentX = platformTilt.currentZ = 0;
+    setCameraView(3);
 }
 
 resetMarble();
