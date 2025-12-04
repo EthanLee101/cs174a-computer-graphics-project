@@ -22,6 +22,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
+renderer.domElement.tabIndex = 0;
+renderer.domElement.focus();
 
 // Environment map for subtle glossy PBR look
 const pmrem = new THREE.PMREMGenerator(renderer);
@@ -47,6 +49,27 @@ function createGradientBackground() {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     return tex;
+}
+
+function ensureLoseOptions() {
+    if (!loseEl) return;
+    // Find or create a Retry button and bind it to reload the current level
+    let retry = loseEl.querySelector('#btn-lose-retry');
+    if (!retry) {
+        retry = loseEl.querySelector('button') || document.createElement('button');
+        retry.id = 'btn-lose-retry';
+        retry.textContent = 'Retry';
+        if (!retry.parentElement) {
+            const actions = loseEl.querySelector('.overlay-actions') || loseEl;
+            actions.appendChild(retry);
+        }
+    }
+    try { retry.removeAttribute('onclick'); } catch (e) {}
+    retry.onclick = null;
+    retry.addEventListener('click', () => {
+        loseEl.style.display = 'none';
+        loadLevel(currentLevel);
+    });
 }
 
 scene.background = createGradientBackground();
@@ -573,15 +596,14 @@ function loadLevel(level) {
         defs.push({ pos: [-h + 2.4, y, 0], size: [t, 0.5, platformSizeCurrent - 6.2] });
         defs.push({ pos: [0, y, 0.8], size: [platformSizeCurrent - 8.2, 0.5, t] });
         buildWalls(defs);
-        // Spikes (offset further from walls and center)
+        // Spikes (offset further from walls and center) — remove the center-top spike near the red wall
         spawnSpikes([
             new THREE.Vector3(-h + 1.6, 0, h - 2.0),
             new THREE.Vector3(h - 1.8, 0, h - 2.2),
             new THREE.Vector3(h - 2.0, 0, -1.0),
             new THREE.Vector3(-1.2, 0, -2.2),
-            new THREE.Vector3(0.0, 0, -h + 1.8),
-            new THREE.Vector3(0.0, 0, 1.1),     // near center gap (north of goal)
-            new THREE.Vector3(1.1, 0, 0.0)      // near center gap (east of goal)
+            new THREE.Vector3(h - 6, 0, h - 4),
+            new THREE.Vector3(1.1, 0, 0.0)     
         ]);
         // Coins (optional, safe spots away from spikes); removed the middle coin that intersected a wall
         spawnCoinsAt([
@@ -590,7 +612,7 @@ function loadLevel(level) {
             new THREE.Vector3(-h + 1.6, coinHeight/2, -h + 1.8),
             new THREE.Vector3(h - 1.8, coinHeight/2, -h + 2.0),
             new THREE.Vector3(0.0, coinHeight/2, h - 2.2),
-            new THREE.Vector3(-1.6, coinHeight/2, 0.6)
+            new THREE.Vector3(1.6, coinHeight/2, 2)
         ]);
         // Goal at center
         goal.position.set(0.0, 0.05, 0.0);
@@ -773,6 +795,7 @@ let gameStarted = false;
 let isPaused = false;
 let timeRemaining = 90; // seconds (1:30)
 let currentCameraView = 3; // Start with angled view
+let startButtonClicked = false; // Only allow pause after Start button is clicked
 
 const timerEl = document.getElementById('timer');
 const scoreEl = document.getElementById('score');
@@ -799,6 +822,9 @@ function setOverlayMessage(msg, showStartButton = false) {
     }
     if (msg) {
         msgEl.textContent = msg;
+        // Also update the static paragraph to generic allowed-time phrasing when pausing
+        const p = startOverlayEl.querySelector('p');
+        if (p) p.textContent = 'Reach the goal within the allowed time.';
         startOverlayEl.style.display = 'block';
     } else {
         startOverlayEl.style.display = 'none';
@@ -972,16 +998,18 @@ function setCameraView(viewNumber) {
     currentCameraView = viewNumber;
     const view = cameraViews[viewNumber];
     
-    if (view.orbit) {
+    if (view && view.orbit) {
         controls.enabled = true;
         camera.position.set(...view.pos);
         controls.target.set(...view.target);
         controls.update();
     } else {
         controls.enabled = false;
-        camera.position.set(...view.pos);
-        camera.lookAt(...view.target);
+        camera.position.set(...(view?.pos || [0, 15, 15]));
+        const tgt = view?.target || [0, 0, 0];
+        camera.lookAt(...tgt);
     }
+    renderer.domElement?.focus?.();
 }
 
 // Initialize with angled view
@@ -989,21 +1017,25 @@ setCameraView(3);
 
 // Show start overlay on load
 if (startOverlayEl) startOverlayEl.style.display = 'block';
-if (startBtn) startBtn.addEventListener('click', () => { gameStarted = true; startOverlayEl.style.display = 'none'; });
+if (startBtn) startBtn.addEventListener('click', () => { startButtonClicked = true; gameStarted = true; startOverlayEl.style.display = 'none'; renderer.domElement?.focus?.(); });
 window.addEventListener('keydown', (e) => {
     if (!gameStarted && (e.code === 'Space' || e.key === ' ')) {
         gameStarted = true;
         isPaused = false;
         if (startOverlayEl) startOverlayEl.style.display = 'none';
+        e.preventDefault();
     }
     else if (gameStarted && (e.code === 'Space' || e.key === ' ')) {
         // Toggle pause/resume
-        isPaused = !isPaused;
-        if (isPaused) {
-            setOverlayMessage('Game paused. Press space to resume.', false);
-        } else {
-            setOverlayMessage('', false);
+        if (startButtonClicked) {
+            isPaused = !isPaused;
+            if (isPaused) {
+                setOverlayMessage('Game paused. Press space to resume.', false);
+            } else {
+                setOverlayMessage('', false);
+            }
         }
+        e.preventDefault();
     }
 });
 
@@ -1013,25 +1045,40 @@ document.addEventListener('keydown', (event) => {
     const lower = key.toLowerCase();
     
     if (key === 'Escape' || key === 'Esc' || key == 'e') {
+        // If resetting during a pause, unpause and hide overlay
+        if (isPaused) {
+            isPaused = false;
+            setOverlayMessage('', false);
+        }
         loadLevel(1);
+        event.preventDefault();
         return;
     }
 
     // Arrow keys for platform tilt
     if (key in keys) {
         keys[key] = true;
+        event.preventDefault();
     }
     
     // Camera view controls
     if (lower >= '0' && lower <= '3') {
         setCameraView(parseInt(lower));
+        event.preventDefault();
     } else if (lower === 'r') {
+        // If resetting during a pause, unpause and hide overlay
+        if (isPaused) {
+            isPaused = false;
+            setOverlayMessage('', false);
+        }
         resetMarble();
+        event.preventDefault();
     }
     // Dev: cycle levels with 'N'
     if (lower === 'n') {
         const next = currentLevel >= 3 ? 1 : currentLevel + 1;
         loadLevel(next);
+        event.preventDefault();
     }
 });
 
@@ -1039,6 +1086,7 @@ window.addEventListener('keyup', (event) => {
     const key = event.key;
     if (key in keys) {
         keys[key] = false;
+        event.preventDefault();
     }
 });
 
@@ -1304,6 +1352,7 @@ function animate() {
                 timeRemaining = 0;
                 gameLost = true;
                 if (loseEl) loseEl.style.display = 'block';
+                ensureLoseOptions();
             }
             if (timerEl) {
                 const t = Math.max(0, Math.floor(timeRemaining));
@@ -1407,6 +1456,8 @@ function animate() {
             m.rotation.z = tilt * Math.cos(tt * Math.PI * 2 * freq * 0.95 + phase * 0.7);
         }
     }
+
+    // (Follow camera removed)
 
     // Update controls if enabled
     if (controls.enabled) {
