@@ -286,6 +286,24 @@ goal.rotation.x = Math.PI / 2;
 goal.receiveShadow = true;
 platformGroup.add(goal);
 
+let goalGlow = null;
+{
+    const glowGeom = new THREE.CylinderGeometry(goalRadius * 1.6, goalRadius * 1.6, 0.02, 32);
+    const glowMat = new THREE.MeshBasicMaterial({
+        color: 0x27ae60,
+        transparent: true,
+        opacity: 0.12,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    goalGlow = new THREE.Mesh(glowGeom, glowMat);
+    goalGlow.position.copy(goal.position);
+    goalGlow.rotation.x = goal.rotation.x;
+    goalGlow.renderOrder = 1;
+    platformGroup.add(goalGlow);
+    goal.userData.glow = goalGlow;
+}
+
 // Collectibles (coins) and scoring
 const coinRadius = 0.2;
 const coinHeight = 0.15;
@@ -314,7 +332,10 @@ function spawnCoins() {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
-        coins.push({ mesh, taken: false });
+        // store base Y and a random phase so each coin bobs slightly out of sync
+        const baseY = mesh.position.y;
+        const phase = Math.random() * Math.PI * 2;
+        coins.push({ mesh, taken: false, baseY, phase });
     }
 }
 spawnCoins();
@@ -354,7 +375,9 @@ function spawnCoinsAt(positions) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
-        coins.push({ mesh, taken: false });
+        const baseY = mesh.position.y;
+        const phase = Math.random() * Math.PI * 2;
+        coins.push({ mesh, taken: false, baseY, phase });
     }
 }
 
@@ -385,32 +408,66 @@ function buildWalls(defs) {
 function spawnSpikes(positions) {
     for (const p of positions) {
         const coneGeo = new THREE.ConeGeometry(0.25, 0.4, 12);
-        const mat = new THREE.MeshPhongMaterial({ color: 0xcc0000, shininess: 80 });
+        const mat = new THREE.MeshPhongMaterial({ color: 0xff6600, shininess: 80, specular: 0x222222});
         const mesh = new THREE.Mesh(coneGeo, mat);
         mesh.position.set(p.x, 0.2, p.z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+
+        // single white stripe around the cone
+        (function addStripe(spikeMesh) {
+            const baseRadius = 0.15;
+            const t = 0.25; // fraction up the cone where stripe sits (0 = base, 1 = apex)
+            const stripeRadius = Math.max(baseRadius * (1 - t), 0.05);
+            const tube = 0.02;
+
+            const stripeGeo = new THREE.TorusGeometry(stripeRadius, tube, 8, 40);
+            const stripeMat = new THREE.MeshPhongMaterial({
+                color: 0xffffff,
+                shininess: 80,
+                emissive: 0xffffff,
+                emissiveIntensity: 0.05
+            });
+            const stripe = new THREE.Mesh(stripeGeo, stripeMat);
+            // orient horizontal ring and position relative to cone base (ConeGeometry base is at y=0)
+            stripe.rotation.x = Math.PI / 2;
+            stripe.position.set(0, 0, 0);
+            stripe.renderOrder = 2;
+            stripe.castShadow = false;
+            stripe.receiveShadow = false;
+            spikeMesh.add(stripe);
+        })(mesh);
+
         platformGroup.add(mesh);
         spikes.push({ mesh, radius: 0.23 });
     }
 }
 
 function spawnMovingObstacles(defs) {
+    const loader = new THREE.TextureLoader();
+    const truckTexture = loader.load('truck.png');
+
     for (const d of defs) {
         const geo = new THREE.BoxGeometry(...d.size);
-        const mat = new THREE.MeshPhongMaterial({ color: 0x9933ff, shininess: 40 });
+        const mat = new THREE.MeshPhongMaterial({
+            map: truckTexture,
+            shininess: 40
+        });
+
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(d.pos[0], d.pos[1], d.pos[2]);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
-        // outline to improve readability
+
+        // outline for readability
         try {
             const egeo = new THREE.EdgesGeometry(geo, 30);
             const eline = new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x2d1452 }));
             eline.position.set(0, 0, 0);
             mesh.add(eline);
-        } catch (e) {}
+        } catch(e) {}
+
         movingObstacles.push({
             mesh,
             axis: d.axis,
@@ -420,10 +477,12 @@ function spawnMovingObstacles(defs) {
             half: new THREE.Vector3(d.size[0]/2, d.size[1]/2, d.size[2]/2),
             t: 0
         });
+
         wallMeshes.push({ mesh });
         wallData.push({ center: mesh.position.clone(), half: new THREE.Vector3(d.size[0]/2, d.size[1]/2, d.size[2]/2) });
     }
 }
+
 
 function updateMovingObstacles(dt) {
     let idx = 0;
@@ -667,7 +726,7 @@ function loadLevel(level) {
 const marbleRadius = 0.3;
 const marbleGeometry = new THREE.SphereGeometry(marbleRadius, 32, 32);
 const marbleMaterial = new THREE.MeshPhongMaterial({
-    color: 0xff7aa2,
+    color: 0xfce6ef,
     shininess: 140,
     specular: 0xffffff,
     reflectivity: 0.9
@@ -711,6 +770,7 @@ const keys = {
 let gameWon = false;
 let gameLost = false;
 let gameStarted = false;
+let isPaused = false;
 let timeRemaining = 90; // seconds (1:30)
 let currentCameraView = 3; // Start with angled view
 
@@ -722,6 +782,29 @@ const startOverlayEl = document.getElementById('start-overlay');
 const startBtn = document.getElementById('start-button');
 let score = 0;
 let coinsCollected = 0;
+
+function setOverlayMessage(msg, showStartButton = false) {
+    if (!startOverlayEl) return;
+    let msgEl = startOverlayEl.querySelector('.overlay-msg');
+    if (!msgEl) {
+        msgEl = document.createElement('div');
+        msgEl.className = 'overlay-msg';
+        msgEl.style.color = '#fff';
+        msgEl.style.fontFamily = 'system-ui, sans-serif';
+        msgEl.style.fontSize = '20px';
+        msgEl.style.textAlign = 'center';
+        msgEl.style.marginBottom = '8px';
+        // Insert message at top of overlay so any start button (if present) stays visible
+        startOverlayEl.insertBefore(msgEl, startOverlayEl.firstChild);
+    }
+    if (msg) {
+        msgEl.textContent = msg;
+        startOverlayEl.style.display = 'block';
+    } else {
+        startOverlayEl.style.display = 'none';
+    }
+    if (startBtn) startBtn.style.display = showStartButton ? 'inline-block' : 'none';
+}
 
 // High score UI (per-level, session-only) and helpers
 let highScoreEl = document.getElementById('high-score');
@@ -866,7 +949,8 @@ function resetMarble() {
     }
     if (winEl) winEl.style.display = 'none';
     if (loseEl) loseEl.style.display = 'none';
-    if (startOverlayEl) startOverlayEl.style.display = 'block';
+    // Show the overlay with initial start message and show the start button
+    setOverlayMessage('Press Space to Start', true);
     // Reset platform tilt and camera view
     platformTilt.targetX = platformTilt.targetZ = 0;
     platformTilt.currentX = platformTilt.currentZ = 0;
@@ -909,7 +993,17 @@ if (startBtn) startBtn.addEventListener('click', () => { gameStarted = true; sta
 window.addEventListener('keydown', (e) => {
     if (!gameStarted && (e.code === 'Space' || e.key === ' ')) {
         gameStarted = true;
+        isPaused = false;
         if (startOverlayEl) startOverlayEl.style.display = 'none';
+    }
+    else if (gameStarted && (e.code === 'Space' || e.key === ' ')) {
+        // Toggle pause/resume
+        isPaused = !isPaused;
+        if (isPaused) {
+            setOverlayMessage('Game paused. Press space to resume.', false);
+        } else {
+            setOverlayMessage('', false);
+        }
     }
 });
 
@@ -918,6 +1012,11 @@ document.addEventListener('keydown', (event) => {
     const key = event.key; // preserve ArrowUp/ArrowDown etc.
     const lower = key.toLowerCase();
     
+    if (key === 'Escape' || key === 'Esc' || key == 'e') {
+        loadLevel(1);
+        return;
+    }
+
     // Arrow keys for platform tilt
     if (key in keys) {
         keys[key] = true;
@@ -1130,7 +1229,7 @@ function checkSpikes() {
 
 // Physics update
 function updatePhysics(deltaTime) {
-    if (gameWon || gameLost || !gameStarted) return;
+    if (gameWon || gameLost || !gameStarted || isPaused) return;
     
     // Clamp delta time to prevent large jumps
     deltaTime = Math.min(deltaTime, 0.066);
@@ -1189,66 +1288,126 @@ function updatePhysics(deltaTime) {
     }
 }
 
-// Animation loop
 function animate() {
     requestAnimationFrame(animate);
     
     const deltaTime = clock.getDelta();
-    if (spikeCooldown > 0) spikeCooldown = Math.max(0, spikeCooldown - deltaTime);
+
+    // Only advance cooldowns, timer and physics when not paused
+    if (!isPaused) {
+        if (spikeCooldown > 0) spikeCooldown = Math.max(0, spikeCooldown - deltaTime);
     
-    // Timer update
-    if (gameStarted && !gameWon && !gameLost) {
-        timeRemaining -= deltaTime;
-        if (timeRemaining <= 0) {
-            timeRemaining = 0;
-            gameLost = true;
-            if (loseEl) loseEl.style.display = 'block';
+        // Timer update
+        if (gameStarted && !gameWon && !gameLost) {
+            timeRemaining -= deltaTime;
+            if (timeRemaining <= 0) {
+                timeRemaining = 0;
+                gameLost = true;
+                if (loseEl) loseEl.style.display = 'block';
+            }
+            if (timerEl) {
+                const t = Math.max(0, Math.floor(timeRemaining));
+                const m = Math.floor(t / 60).toString().padStart(2, '0');
+                const s = (t % 60).toString().padStart(2, '0');
+                timerEl.textContent = `${m}:${s}`;
+            }
         }
-        if (timerEl) {
-            const t = Math.max(0, Math.floor(timeRemaining));
-            const m = Math.floor(t / 60).toString().padStart(2, '0');
-            const s = (t % 60).toString().padStart(2, '0');
-            timerEl.textContent = `${m}:${s}`;
+
+        // Update platform tilt based on arrow keys (bounded to prevent upside-down)
+        if (keys.ArrowUp) {
+            platformTilt.targetX = Math.max(platformTilt.targetX - platformTilt.tiltSpeed, -platformTilt.maxAngle);
+        }
+        if (keys.ArrowDown) {
+            platformTilt.targetX = Math.min(platformTilt.targetX + platformTilt.tiltSpeed, platformTilt.maxAngle);
+        }
+        if (keys.ArrowLeft) {
+            platformTilt.targetZ = Math.max(platformTilt.targetZ - platformTilt.tiltSpeed, -platformTilt.maxAngle);
+        }
+        if (keys.ArrowRight) {
+            platformTilt.targetZ = Math.min(platformTilt.targetZ + platformTilt.tiltSpeed, platformTilt.maxAngle);
+        }
+        
+        // Smoothly interpolate platform tilt
+        platformTilt.currentX += (platformTilt.targetX - platformTilt.currentX) * 0.1;
+        platformTilt.currentZ += (platformTilt.targetZ - platformTilt.currentZ) * 0.1;
+        
+        platformGroup.rotation.x = platformTilt.currentX;
+        platformGroup.rotation.z = platformTilt.currentZ;
+        
+        // Update physics and obstacles
+        updatePhysics(deltaTime);
+        updateMovingObstacles(deltaTime);
+        // Collectibles check
+        if (gameStarted && !gameWon && !gameLost) {
+            checkCoins();
+            checkSpikes();
         }
     }
-    
-    // Update platform tilt based on arrow keys (bounded to prevent upside-down)
-    if (keys.ArrowUp) {
-        platformTilt.targetX = Math.max(platformTilt.targetX - platformTilt.tiltSpeed, -platformTilt.maxAngle);
-    }
-    if (keys.ArrowDown) {
-        platformTilt.targetX = Math.min(platformTilt.targetX + platformTilt.tiltSpeed, platformTilt.maxAngle);
-    }
-    if (keys.ArrowLeft) {
-        platformTilt.targetZ = Math.max(platformTilt.targetZ - platformTilt.tiltSpeed, -platformTilt.maxAngle);
-    }
-    if (keys.ArrowRight) {
-        platformTilt.targetZ = Math.min(platformTilt.targetZ + platformTilt.tiltSpeed, platformTilt.maxAngle);
-    }
-    
-    // Smoothly interpolate platform tilt
-    platformTilt.currentX += (platformTilt.targetX - platformTilt.currentX) * 0.1;
-    platformTilt.currentZ += (platformTilt.targetZ - platformTilt.currentZ) * 0.1;
-    
-    platformGroup.rotation.x = platformTilt.currentX;
-    platformGroup.rotation.z = platformTilt.currentZ;
-    
-    // Update physics
-    updatePhysics(deltaTime);
-    updateMovingObstacles(deltaTime);
-    // Collectibles check
-    if (gameStarted && !gameWon && !gameLost) {
-        checkCoins();
-        checkSpikes();
-    }
-    
-    // Update point light position to follow marble
+
+    // Update point light position to follow marble even when paused (keeps visuals consistent)
     pointLight.position.set(
         marbleState.position.x,
         marbleState.position.y + 3,
         marbleState.position.z
     );
     
+    if (typeof goal !== 'undefined' && goal) {
+        const t = clock.elapsedTime;
+        const pulse = 0.5 + 0.5 * Math.sin(t * 2.0); // 2Hz pulsing in range 0..1
+
+        // Prefer material.emissiveIntensity if available, otherwise modulate emissive color
+        if ('emissiveIntensity' in goal.material) {
+            goal.material.emissiveIntensity = 0.25 + 0.6 * pulse; // tweak range as needed
+        } else {
+            const base = new THREE.Color(0x27ae60);
+            // scale the base emissive color by a factor
+            const factor = 0.15 + 0.85 * pulse;
+            goal.material.emissive.copy(base).multiplyScalar(factor);
+        }
+        goal.material.needsUpdate = true;
+
+        // If you created a halo mesh and stored it on goal.userData.glow, pulse its opacity/scale too
+        if (goal.userData && goal.userData.glow) {
+            const g = goal.userData.glow;
+            g.material.opacity = 0.06 + 0.2 * pulse;
+            const s = 1.0 + 0.08 * pulse;
+            g.scale.set(s, 1, s);
+            g.position.copy(goal.position);
+            g.material.needsUpdate = true;
+        }
+    }
+
+    if (coins && coins.length) {
+        const t = clock.elapsedTime;
+        const amp = 0.08;   // bob amplitude in world units
+        const freq = 0.5;   // bob frequency (Hz)
+        for (const c of coins) {
+            if (c.taken || !c.mesh) continue;
+            const phase = c.phase || 0;
+            c.mesh.position.y = c.baseY + amp * Math.sin(t * Math.PI * 2 * freq + phase);
+        }
+    }
+
+    if (spikes && spikes.length) {
+        const tt = clock.elapsedTime;
+        for (const s of spikes) {
+            const m = s.mesh;
+            if (!m) continue;
+            const ud = m.userData || {};
+            const phase = ud.phase || 0;
+            const wobAmp = ud.wobbleAmp || 0.001;
+            const freq = ud.wobbleFreq || 1;
+            const tilt = ud.wobbleTilt || 0.05;
+
+            // vertical bob (doesn't affect collision logic which uses x/z)
+            m.position.y = (ud.baseY ?? m.position.y) + wobAmp * Math.sin(tt * Math.PI * 2 * freq + phase);
+
+            // gentle rocking/tilt for a vibrating look
+            m.rotation.x = tilt * Math.sin(tt * Math.PI * 2 * freq * 1.05 + phase * 1.3);
+            m.rotation.z = tilt * Math.cos(tt * Math.PI * 2 * freq * 0.95 + phase * 0.7);
+        }
+    }
+
     // Update controls if enabled
     if (controls.enabled) {
         controls.update();
