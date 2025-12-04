@@ -57,7 +57,7 @@ let woodTex = null;
 try {
     textureLoader.load('885.jpg', (tex) => {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-        tex.repeat.set(2, 2);
+        tex.repeat.set(3, 3);
         tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
         tex.colorSpace = THREE.SRGBColorSpace;
         woodTex = tex;
@@ -81,7 +81,7 @@ controls.maxDistance = 30;
 const clock = new THREE.Clock();
 
 // Lighting setup
-const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+const ambientLight = new THREE.AmbientLight(0x404040, 0.65);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
@@ -98,7 +98,7 @@ directionalLight.shadow.mapSize.height = 2048;
 directionalLight.shadow.bias = -0.0005;
 scene.add(directionalLight);
 
-const pointLight = new THREE.PointLight(0xffffff, 0.5, 50);
+const pointLight = new THREE.PointLight(0xffffff, 0.7, 50);
 pointLight.position.set(0, 5, 0);
 scene.add(pointLight);
 
@@ -108,13 +108,14 @@ const platformGroup = new THREE.Group();
 scene.add(platformGroup);
 
 // Platform
-const platformSize = 10;
-const platformGeometry = new THREE.BoxGeometry(platformSize, 0.5, platformSize);
+let platformSizeCurrent = 10;
+const platformSizeBase = 10;
+let platformGeometry = new THREE.BoxGeometry(platformSizeCurrent, 0.5, platformSizeCurrent);
 const platformMaterial = new THREE.MeshPhongMaterial({
     color: 0x8d5524,
     shininess: 35
 });
-const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+let platform = new THREE.Mesh(platformGeometry, platformMaterial);
 platform.position.y = -0.25;
 platform.receiveShadow = true;
 platformGroup.add(platform);
@@ -124,6 +125,54 @@ if (woodTex) {
     platform.material.needsUpdate = true;
 }
 
+function rebuildPlatform(newSize) {
+    // Remove old platform and borders
+    if (platform) {
+        platformGroup.remove(platform);
+        platform.geometry.dispose();
+    }
+    for (const b of borderMeshes) {
+        platformGroup.remove(b);
+        if (b.geometry) b.geometry.dispose();
+        if (b.material) b.material.dispose?.();
+    }
+    borderMeshes.length = 0;
+    platformSizeCurrent = newSize;
+    // Create new platform
+    platformGeometry = new THREE.BoxGeometry(platformSizeCurrent, 0.5, platformSizeCurrent);
+    platform = new THREE.Mesh(platformGeometry, platformMaterial);
+    platform.position.y = -0.25;
+    platform.receiveShadow = true;
+    platformGroup.add(platform);
+    if (woodTex) {
+        platform.material.map = woodTex;
+        platform.material.needsUpdate = true;
+    }
+    // Rebuild borders with updated positions/sizes
+    const borderHeight = 0.5;
+    const borderThickness = 0.3;
+    borders = [
+        { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff0000 },
+        { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff8800 },
+        { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x0000aa },
+        { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x00aaaa }
+    ];
+    borders.forEach(border => {
+        const geometry = new THREE.BoxGeometry(...border.size);
+        const material = new THREE.MeshPhongMaterial({
+            color: border.color,
+            shininess: 80,
+            specular: 0xffffff
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(...border.pos);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        borderMeshes.push(mesh);
+    });
+}
+
 // Platform border with color coding
 const borderHeight = 0.5;
 const borderThickness = 0.3;
@@ -131,15 +180,16 @@ const borderThickness = 0.3;
 // Create borders with unique color for each side
 // North (Up arrow) = Red, South (Down arrow) = Orange
 // West (Left arrow) = Teal, East (Right arrow) = Dark Blue
-const borders = [
+const borderMeshes = [];
+let borders = [
     // North (Red - controlled by Up arrow)
-    { pos: [0, borderHeight/2, -platformSize/2], size: [platformSize + borderThickness*2, borderHeight, borderThickness], color: 0xff0000 },
+    { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff0000 },
     // South (Orange - controlled by Down arrow)
-    { pos: [0, borderHeight/2, platformSize/2], size: [platformSize + borderThickness*2, borderHeight, borderThickness], color: 0xff8800 },
+    { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff8800 },
     // East (Dark Blue - controlled by Right arrow)
-    { pos: [platformSize/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSize], color: 0x0000aa },
+    { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x0000aa },
     // West (Teal - controlled by Left arrow)
-    { pos: [-platformSize/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSize], color: 0x00aaaa }
+    { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x00aaaa }
 ];
 
 borders.forEach(border => {
@@ -154,6 +204,7 @@ borders.forEach(border => {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     platformGroup.add(mesh);
+    borderMeshes.push(mesh);
 });
 
 // Add Z-axis orientation vector (thin arrow pointing up)
@@ -182,8 +233,9 @@ platformGroup.add(zAxisArrow);
 
 // Maze walls
 const wallMaterial = new THREE.MeshPhongMaterial({
-    color: 0x7f8c8d,
-    shininess: 20
+    color: 0x616a6b,
+    shininess: 12,
+    specular: 0x111111
 });
 const wallHeight = 0.5;
 const wallThickness = 0.3;
@@ -265,6 +317,350 @@ function spawnCoins() {
 }
 spawnCoins();
 
+let currentLevel = 1;
+const spikes = [];
+const movingObstacles = [];
+
+function clearLevelExtras() {
+    for (const w of wallMeshes) {
+        platformGroup.remove(w.mesh);
+    }
+    wallMeshes.length = 0;
+    wallData.length = 0;
+    for (const c of coins) {
+        platformGroup.remove(c.mesh);
+    }
+    coins.length = 0;
+    for (const s of spikes) {
+        platformGroup.remove(s.mesh);
+    }
+    spikes.length = 0;
+    for (const m of movingObstacles) {
+        platformGroup.remove(m.mesh);
+    }
+    movingObstacles.length = 0;
+}
+
+function spawnCoinsAt(positions) {
+    for (const c of coins) platformGroup.remove(c.mesh);
+    coins.length = 0;
+    for (const p of positions) {
+        const geo = new THREE.CylinderGeometry(coinRadius, coinRadius, coinHeight, 24);
+        const mesh = new THREE.Mesh(geo, coinMaterial);
+        mesh.position.copy(p);
+        mesh.rotation.x = Math.PI / 2;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        coins.push({ mesh, taken: false });
+    }
+}
+
+function buildWalls(defs) {
+    for (const w of defs) {
+        const geometry = new THREE.BoxGeometry(...w.size);
+        const mesh = new THREE.Mesh(geometry, wallMaterial);
+        mesh.position.set(...w.pos);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        // add thin outline for definition
+        try {
+            const egeo = new THREE.EdgesGeometry(geometry, 30);
+            const eline = new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            eline.position.set(0, 0, 0);
+            mesh.add(eline);
+        } catch (e) {}
+        wallMeshes.push({ mesh });
+        const half = { x: w.size[0] / 2, y: w.size[1] / 2, z: w.size[2] / 2 };
+        wallData.push({
+            center: new THREE.Vector3(w.pos[0], w.pos[1], w.pos[2]),
+            half: new THREE.Vector3(half.x, half.y, half.z)
+        });
+    }
+}
+
+function spawnSpikes(positions) {
+    for (const p of positions) {
+        const coneGeo = new THREE.ConeGeometry(0.25, 0.4, 12);
+        const mat = new THREE.MeshPhongMaterial({ color: 0xcc0000, shininess: 80 });
+        const mesh = new THREE.Mesh(coneGeo, mat);
+        mesh.position.set(p.x, 0.2, p.z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        spikes.push({ mesh, radius: 0.23 });
+    }
+}
+
+function spawnMovingObstacles(defs) {
+    for (const d of defs) {
+        const geo = new THREE.BoxGeometry(...d.size);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x9933ff, shininess: 40 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(d.pos[0], d.pos[1], d.pos[2]);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        platformGroup.add(mesh);
+        // outline to improve readability
+        try {
+            const egeo = new THREE.EdgesGeometry(geo, 30);
+            const eline = new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x2d1452 }));
+            eline.position.set(0, 0, 0);
+            mesh.add(eline);
+        } catch (e) {}
+        movingObstacles.push({
+            mesh,
+            axis: d.axis,
+            range: d.range,
+            speed: d.speed,
+            base: new THREE.Vector3(d.pos[0], d.pos[1], d.pos[2]),
+            half: new THREE.Vector3(d.size[0]/2, d.size[1]/2, d.size[2]/2),
+            t: 0
+        });
+        wallMeshes.push({ mesh });
+        wallData.push({ center: mesh.position.clone(), half: new THREE.Vector3(d.size[0]/2, d.size[1]/2, d.size[2]/2) });
+    }
+}
+
+function updateMovingObstacles(dt) {
+    let idx = 0;
+    for (let i = 0; i < movingObstacles.length; i++) {
+        const m = movingObstacles[i];
+        m.t += dt * m.speed;
+        const s = Math.sin(m.t) * m.range;
+        if (m.axis === 'x') meshSet(m.mesh, m.base.x + s, m.base.y, m.base.z);
+        else if (m.axis === 'z') meshSet(m.mesh, m.base.x, m.base.y, m.base.z + s);
+        else meshSet(m.mesh, m.base.x, m.base.y + s, m.base.z);
+    }
+    let wdi = 0;
+    for (let i = 0; i < wallMeshes.length; i++) {
+        const wm = wallMeshes[i];
+        const wd = wallData[wdi];
+        if (wd && wm && wm.mesh) {
+            wd.center.copy(wm.mesh.position);
+        }
+        wdi++;
+    }
+}
+
+function meshSet(mesh, x, y, z) {
+    mesh.position.set(x, y, z);
+}
+
+function loadLevel(level) {
+    clearLevelExtras();
+    // Resize platform per level
+    if (level === 1) {
+        rebuildPlatform(platformSizeBase);
+        currentLevel = 1;
+        buildWalls([
+            { pos: [-2, 0.25, -2], size: [0.3, 0.5, 4] },
+            { pos: [2, 0.25, 2], size: [0.3, 0.5, 4] },
+            { pos: [0, 0.25, 0], size: [0.3, 0.5, 3] },
+            { pos: [-3, 0.25, 1], size: [3, 0.5, 0.3] },
+            { pos: [1, 0.25, -3], size: [4, 0.5, 0.3] }
+        ]);
+        spawnCoins();
+        goal.position.set(3.5, 0.05, 3.5);
+    } else if (level === 2) {
+        // Increase platform for level 2 (20% larger by default)
+        rebuildPlatform(platformSizeBase * 1.2);
+        currentLevel = 2;
+        // Build spiral using platform size with wider corridors and thinner walls
+        const h = platformSizeCurrent / 2;
+        const clr = 1.1; // larger clearance from borders
+        const t = 0.25;  // thinner walls
+        const y = 0.25;  // wall center Y
+        const defs = [];
+        // Outer ring with west entrance gap and added gaps in north (top), south (bottom) and east (right) walls
+        // North (split with center gap)
+        {
+            const gapW = 1.4, cx = 0;
+            const xMin = -h + clr, xMax = h - clr;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - clr], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - clr], size: [rightLen, 0.5, t] });
+        }
+        // South (split with center gap)
+        {
+            const gapW = 1.4, cx = 0;
+            const xMin = -h + clr, xMax = h - clr;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, -h + clr], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + clr], size: [rightLen, 0.5, t] });
+        }
+        // East (split with mid-lower gap)
+        {
+            const gapW = 1.4, cz = -1.0;
+            const zMin = -h + clr, zMax = h - clr;
+            const seg1Len = (cz - gapW/2) - zMin;
+            const seg2Len = zMax - (cz + gapW/2);
+            if (seg1Len > 0.05) defs.push({ pos: [h - clr, y, zMin + seg1Len/2], size: [t, 0.5, seg1Len] });
+            if (seg2Len > 0.05) defs.push({ pos: [h - clr, y, cz + gapW/2 + seg2Len/2], size: [t, 0.5, seg2Len] });
+        }
+        // West split (wider entrance area)
+        defs.push({ pos: [-h + clr, y, 0.8], size: [t, 0.5, h - 0.4] });
+        defs.push({ pos: [-h + clr, y, -h + 1.6], size: [t, 0.5, 2.2] });
+        // Spiral inward segments (more room between)
+        defs.push({ pos: [0, y, h - 2.6], size: [platformSizeCurrent - 4.2, 0.5, t] });
+        defs.push({ pos: [h - 2.6, y, 0], size: [t, 0.5, platformSizeCurrent - 5.0] });
+        // Bottom-most inner horizontal (reverted to single piece)
+        defs.push({ pos: [0, y, -h + 2.0], size: [platformSizeCurrent - 5.2, 0.5, t] });
+        defs.push({ pos: [-h + 2.4, y, 0], size: [t, 0.5, platformSizeCurrent - 6.2] });
+        defs.push({ pos: [0, y, 0.8], size: [platformSizeCurrent - 8.2, 0.5, t] });
+        buildWalls(defs);
+        // Spikes (offset further from walls and center)
+        spawnSpikes([
+            new THREE.Vector3(-h + 1.6, 0, h - 2.0),
+            new THREE.Vector3(h - 1.8, 0, h - 2.2),
+            new THREE.Vector3(h - 2.0, 0, -1.0),
+            new THREE.Vector3(-1.2, 0, -2.2),
+            new THREE.Vector3(0.0, 0, -h + 1.8),
+            new THREE.Vector3(0.0, 0, 1.1),     // near center gap (north of goal)
+            new THREE.Vector3(1.1, 0, 0.0)      // near center gap (east of goal)
+        ]);
+        // Coins (optional, safe spots away from spikes); removed the middle coin that intersected a wall
+        spawnCoinsAt([
+            new THREE.Vector3(-h + 2.2, coinHeight/2, h - 2.6),
+            new THREE.Vector3(-0.8, coinHeight/2, -0.8),
+            new THREE.Vector3(-h + 1.6, coinHeight/2, -h + 1.8),
+            new THREE.Vector3(h - 1.8, coinHeight/2, -h + 2.0),
+            new THREE.Vector3(0.0, coinHeight/2, h - 2.2),
+            new THREE.Vector3(-1.6, coinHeight/2, 0.6)
+        ]);
+        // Goal at center
+        goal.position.set(0.0, 0.05, 0.0);
+    } else if (level === 3) {
+        // Level 3: bigger platform than level 2, wider corridors, denser spiral, moving obstacles
+        rebuildPlatform(platformSizeBase * 1.35);
+        currentLevel = 3;
+        const h = platformSizeCurrent / 2;
+        const clr = 1.3;   // more border clearance => wider outer corridors
+        const t = 0.25;    // thin walls to maximize corridor width
+        const y = 0.25;
+        const defs = [];
+        // Outer ring with multiple gaps (north, east-upper, east-mid, south)
+        // North split
+        {
+            const gapW = 1.4, cx = -0.6;
+            const xMin = -h + clr, xMax = h - clr;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - clr], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - clr], size: [rightLen, 0.5, t] });
+        }
+        // South split (mid gap)
+        {
+            const gapW = 1.6, cx = 0.8;
+            const xMin = -h + clr, xMax = h - clr;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, -h + clr], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + clr], size: [rightLen, 0.5, t] });
+        }
+        // East splits: add two holes (upper and mid) on the outer east wall
+        {
+            const zMin = -h + clr, zMax = h - clr;
+            const gaps = [
+                { cz: 1.6, w: 1.6 }, // upper gap
+                { cz: 0.0, w: 1.2 }  // mid gap
+            ].sort((a,b)=>a.cz-b.cz);
+            let cursor = zMin;
+            for (let i = 0; i < gaps.length; i++) {
+                const cz = gaps[i].cz, w = gaps[i].w;
+                const segEnd = cz - w/2;
+                const segLen = segEnd - cursor;
+                if (segLen > 0.05) defs.push({ pos: [h - clr, y, cursor + segLen/2], size: [t, 0.5, segLen] });
+                cursor = cz + w/2;
+            }
+            const tailLen = zMax - cursor;
+            if (tailLen > 0.05) defs.push({ pos: [h - clr, y, cursor + tailLen/2], size: [t, 0.5, tailLen] });
+        }
+        // West split entrance retained
+        defs.push({ pos: [-h + clr, y, 1.2], size: [t, 0.5, h - 0.8] });
+        defs.push({ pos: [-h + clr, y, -h + 1.8], size: [t, 0.5, 2.4] });
+        // Inner spirals wider and denser (added segments) with holes for alternate routes
+        // Top inner horizontal at z = h-2.8 with a gap near center-right
+        {
+            const L = platformSizeCurrent - 4.6;
+            const gapW = 1.2, cx = 0.2;
+            const xMin = -L/2, xMax = L/2;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - 2.8], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - 2.8], size: [rightLen, 0.5, t] });
+        }
+        // Right inner vertical at x = h-2.8 with a mid gap
+        {
+            const H = platformSizeCurrent - 5.2;
+            const gapW = 1.0, cz = 0.6;
+            const zMin = -H/2, zMax = H/2;
+            const lowerLen = (cz - gapW/2) - zMin;
+            const upperLen = zMax - (cz + gapW/2);
+            if (lowerLen > 0.05) defs.push({ pos: [h - 2.8, y, zMin + lowerLen/2], size: [t, 0.5, lowerLen] });
+            if (upperLen > 0.05) defs.push({ pos: [h - 2.8, y, cz + gapW/2 + upperLen/2], size: [t, 0.5, upperLen] });
+        }
+        // Bottom inner horizontal at z = -h+2.4 with a gap slightly right of center
+        {
+            const L = platformSizeCurrent - 5.8;
+            const gapW = 1.2, cx = 0.8;
+            const xMin = -L/2, xMax = L/2;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, -h + 2.4], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + 2.4], size: [rightLen, 0.5, t] });
+        }
+        defs.push({ pos: [-h + 2.4, y, 0], size: [t, 0.5, platformSizeCurrent - 6.6] });
+        // Middle inner horizontal at z = 0.8 with a gap toward the right side
+        {
+            const L = platformSizeCurrent - 8.8;
+            const gapW = 1.2, cx = 1.6;
+            const xMin = -L/2, xMax = L/2;
+            const leftLen = (cx - gapW/2) - xMin;
+            const rightLen = xMax - (cx + gapW/2);
+            if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, 0.8], size: [leftLen, 0.5, t] });
+            if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, 0.8], size: [rightLen, 0.5, t] });
+        }
+        defs.push({ pos: [h - 3.6, y, 0.4], size: [t, 0.5, 2.0] }); // small inner post to force pathing
+        buildWalls(defs);
+        // Moving obstacles: three purple bars that run along corridors adjacent to walls
+        // m1: runs horizontally along the corridor below the north inner wall
+        // m2: runs vertically along the right-side inner corridor
+        // m3: runs horizontally along the corridor above the south inner wall
+        // m4: NEW – centered horizontal runner just below the central spike area
+        spawnMovingObstacles([
+            { pos: [0.0, 0.25, h - 3.4], size: [1.4, 0.5, 0.3], axis: 'x', range: 2.0, speed: 2.1 },
+            { pos: [h - 3.2, 0.25, 0.0], size: [0.3, 0.5, 1.3], axis: 'z', range: 2.0, speed: 1.9 },
+            { pos: [0.0, 0.25, -h + 2.8], size: [1.2, 0.5, 0.3], axis: 'x', range: 1.8, speed: 2.2 },
+            { pos: [0.0, 0.25, 0.2], size: [1.0, 0.5, 0.3], axis: 'x', range: 1.2, speed: 2.1 }
+        ]);
+        // Spikes: more and slightly closer to paths, still with clearance
+        spawnSpikes([
+            new THREE.Vector3(-h + 1.8, 0, h - 2.0),
+            new THREE.Vector3(h - 1.8, 0, h - 2.2),
+            new THREE.Vector3(h - 2.2, 0, -1.2),
+            new THREE.Vector3(-1.4, 0, -2.2),
+            new THREE.Vector3(0.0, 0, -h + 1.8),
+            new THREE.Vector3(-0.2, 0, 1.2)
+        ]);
+        // Coins in safe locations away from bar sweep
+        spawnCoinsAt([
+            new THREE.Vector3(-h + 2.6, coinHeight/2, h - 2.6),
+            new THREE.Vector3(h - 2.6, coinHeight/2, 1.0),
+            new THREE.Vector3(-1.0, coinHeight/2, -1.0),
+            new THREE.Vector3(1.2, coinHeight/2, 2.0),
+            new THREE.Vector3(0.0, coinHeight/2, -2.6),
+            new THREE.Vector3(-2.2, coinHeight/2, 0.6)
+        ]);
+        // Goal at center
+        goal.position.set(0.0, 0.05, 0.0);
+    }
+    resetMarble();
+}
+
 // Marble
 const marbleRadius = 0.3;
 const marbleGeometry = new THREE.SphereGeometry(marbleRadius, 32, 32);
@@ -323,6 +719,94 @@ const loseEl = document.getElementById('lose-message');
 const startOverlayEl = document.getElementById('start-overlay');
 const startBtn = document.getElementById('start-button');
 let score = 0;
+let coinsCollected = 0;
+
+// High score UI (per-level, session-only) and helpers
+let highScoreEl = document.getElementById('high-score');
+function styleHudItem(el) {
+    if (!el) return;
+    el.style.margin = '0';
+    el.style.padding = '4px 8px';
+    el.style.background = 'rgba(0,0,0,0.25)';
+    el.style.borderRadius = '6px';
+    el.style.boxShadow = '0 1px 3px rgba(0,0,0,0.2)';
+    el.style.display = 'inline-block';
+    el.style.minWidth = '120px';
+}
+// Create a unified top-center HUD bar for timer, score, high score
+let topBar = document.getElementById('hud-topbar');
+if (!topBar) {
+    topBar = document.createElement('div');
+    topBar.id = 'hud-topbar';
+    topBar.style.position = 'fixed';
+    topBar.style.top = '12px';
+    topBar.style.left = '50%';
+    topBar.style.transform = 'translateX(-50%)';
+    topBar.style.zIndex = '1000';
+    topBar.style.background = 'rgba(0,0,0,0.75)';
+    topBar.style.color = '#fff';
+    topBar.style.fontFamily = 'system-ui, sans-serif';
+    topBar.style.padding = '6px 10px';
+    topBar.style.borderRadius = '10px';
+    topBar.style.boxShadow = '0 2px 6px rgba(0,0,0,0.25)';
+    topBar.style.display = 'inline-flex';
+    topBar.style.alignItems = 'center';
+    topBar.style.gap = '12px';
+    topBar.style.backdropFilter = 'none';
+    document.body.appendChild(topBar);
+}
+// Ensure timer and score exist, style them and move into the top bar
+if (timerEl) {
+    styleHudItem(timerEl);
+    timerEl.style.fontWeight = '700';
+    timerEl.style.color = '#fff';
+    timerEl.style.opacity = '1';
+    timerEl.style.textShadow = '0 1px 2px rgba(0,0,0,0.6)';
+    timerEl.style.filter = 'none';
+    timerEl.style.mixBlendMode = 'normal';
+    timerEl.textContent = timerEl.textContent || '01:30';
+    topBar.appendChild(timerEl);
+}
+if (scoreEl) {
+    styleHudItem(scoreEl);
+    scoreEl.style.fontWeight = '700';
+    scoreEl.style.color = '#fff';
+    scoreEl.style.opacity = '1';
+    scoreEl.style.textShadow = '0 1px 2px rgba(0,0,0,0.6)';
+    scoreEl.style.filter = 'none';
+    scoreEl.style.mixBlendMode = 'normal';
+    scoreEl.textContent = 'Score: 0';
+    topBar.appendChild(scoreEl);
+}
+if (!highScoreEl) {
+    highScoreEl = document.createElement('div');
+    highScoreEl.id = 'high-score';
+}
+styleHudItem(highScoreEl);
+highScoreEl.style.fontWeight = '700';
+highScoreEl.style.color = '#fff';
+highScoreEl.style.opacity = '1';
+highScoreEl.style.textShadow = '0 1px 2px rgba(0,0,0,0.6)';
+highScoreEl.style.filter = 'none';
+highScoreEl.style.mixBlendMode = 'normal';
+highScoreEl.textContent = 'High: 0';
+topBar.appendChild(highScoreEl);
+
+function hsKey(level) { return `maze_highscore_level_${level}`; }
+const sessionHigh = {};
+function getHighScore(level) { return sessionHigh[level] || 0; }
+function setHighScore(level, val) { sessionHigh[level] = val; }
+function updateHighScoreUI() {
+    const hs = getHighScore(currentLevel);
+    if (highScoreEl) highScoreEl.textContent = `High: ${hs}`;
+}
+function updateHighScoreIfNeeded() {
+    const hs = getHighScore(currentLevel);
+    if (score > hs) { setHighScore(currentLevel, score); updateHighScoreUI(); }
+}
+
+// Spike cooldown to prevent immediate re-trigger after respawn
+let spikeCooldown = 0;
 
 // Camera views
 const cameraViews = {
@@ -332,18 +816,52 @@ const cameraViews = {
     3: { pos: [10, 12, 10], target: [0, 0, 0], orbit: false }  // Angled view
 };
 
-// Initialize marble position
-function resetMarble() {
-    marbleState.position.set(-3.5, marbleRadius, -3.5);
+// Per-level spawn points
+function levelSpawn(level) {
+    if (level === 2 || level === 3) return new THREE.Vector3(-platformSizeCurrent/2 + 0.8, marbleRadius, platformSizeCurrent/2 - 0.8); // top-left near corner with clearance
+    return new THREE.Vector3(-3.5, marbleRadius, -3.5); // default for level 1
+}
+
+// Lightweight spawn reset (used for spikes)
+function resetToSpawnOnly() {
+    const sp = levelSpawn(currentLevel);
+    marbleState.position.copy(sp);
     marbleState.velocity.set(0, 0, 0);
     marbleState.angularVelocity.set(0, 0, 0);
+    // Keep tilt, timer, score, and overlays as-is
+}
+
+// Initialize marble position
+function resetMarble() {
+    const sp = levelSpawn(currentLevel);
+    marbleState.position.copy(sp);
+    marbleState.velocity.set(0, 0, 0);
+    marbleState.angularVelocity.set(0, 0, 0);
+    // Immediately sync the visible marble mesh to the spawn position
+    if (typeof marble !== 'undefined' && marble && marble.position) {
+        marble.position.copy(sp);
+        marble.quaternion.set(0, 0, 0, 1);
+        marble.updateMatrixWorld(true);
+    }
     gameWon = false;
     gameLost = false;
     gameStarted = false;
-    timeRemaining = 90;
+    // Per-level start timers
+    if (currentLevel === 1) {
+        timeRemaining = 60;
+    } else if (currentLevel === 2) {
+        timeRemaining = 90;
+    } else {
+        timeRemaining = 120;
+    }
     score = 0;
+    coinsCollected = 0;
     if (scoreEl) scoreEl.textContent = `Score: ${score}`;
-    if (timerEl) timerEl.textContent = '01:30';
+    if (timerEl) {
+        const mins = Math.floor(timeRemaining / 60).toString().padStart(1, '0');
+        const secs = (timeRemaining % 60).toString().padStart(2, '0');
+        timerEl.textContent = `${mins}:${secs}`;
+    }
     if (winEl) winEl.style.display = 'none';
     if (loseEl) loseEl.style.display = 'none';
     if (startOverlayEl) startOverlayEl.style.display = 'block';
@@ -351,10 +869,14 @@ function resetMarble() {
     platformTilt.targetX = platformTilt.targetZ = 0;
     platformTilt.currentX = platformTilt.currentZ = 0;
     setCameraView(3);
-    // Respawn collectibles
-    if (typeof spawnCoins === 'function') {
+    // Clear any confetti from a previous win
+    clearConfetti();
+    // Respawn collectibles for Level 1 only
+    if (currentLevel === 1 && typeof spawnCoins === 'function') {
         spawnCoins();
     }
+    // Refresh high score display for current level
+    updateHighScoreUI();
 }
 
 resetMarble();
@@ -389,9 +911,10 @@ window.addEventListener('keydown', (e) => {
     }
 });
 
-// Keyboard events
-window.addEventListener('keydown', (event) => {
-    const key = event.key;
+// Keyboard controls
+document.addEventListener('keydown', (event) => {
+    const key = event.key; // preserve ArrowUp/ArrowDown etc.
+    const lower = key.toLowerCase();
     
     // Arrow keys for platform tilt
     if (key in keys) {
@@ -399,16 +922,20 @@ window.addEventListener('keydown', (event) => {
     }
     
     // Camera view controls
-    if (key >= '0' && key <= '3') {
-        setCameraView(parseInt(key));
-    } else if (key.toLowerCase() === 'r') {
+    if (lower >= '0' && lower <= '3') {
+        setCameraView(parseInt(lower));
+    } else if (lower === 'r') {
         resetMarble();
+    }
+    // Dev: cycle levels with 'N'
+    if (lower === 'n') {
+        const next = currentLevel >= 3 ? 1 : currentLevel + 1;
+        loadLevel(next);
     }
 });
 
 window.addEventListener('keyup', (event) => {
     const key = event.key;
-    
     if (key in keys) {
         keys[key] = false;
     }
@@ -458,7 +985,7 @@ function checkWallCollisions() {
     }
     
     // Check platform boundaries (walls)
-    const halfSize = platformSize / 2 - marbleRadius;
+    const halfSize = platformSizeCurrent / 2 - marbleRadius;
     if (Math.abs(marbleState.position.x) > halfSize) {
         marbleState.position.x = Math.sign(marbleState.position.x) * halfSize;
         marbleState.velocity.x *= -BOUNCE_DAMPING;
@@ -483,6 +1010,51 @@ function checkWallCollisions() {
 }
 
 // Check win condition
+function ensureWinOptions() {
+    if (!winEl) return;
+    let container = winEl.querySelector('#win-actions');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'win-actions';
+        container.style.marginTop = '10px';
+        container.style.display = 'flex';
+        container.style.gap = '8px';
+        // Reuse an existing 'Play Again' button if present, otherwise create
+        let replay = winEl.querySelector('#btn-replay');
+        if (!replay) {
+            replay = document.createElement('button');
+            replay.id = 'btn-replay';
+            replay.textContent = 'Play Again';
+        }
+        let next = winEl.querySelector('#btn-next');
+        if (!next) {
+            next = document.createElement('button');
+            next.id = 'btn-next';
+            next.textContent = 'Next Level';
+        }
+        container.appendChild(replay);
+        container.appendChild(next);
+        winEl.appendChild(container);
+        replay.addEventListener('click', () => {
+            // Reload current level layout and reset fully
+            loadLevel(currentLevel);
+        });
+        next.addEventListener('click', () => {
+            const target = Math.min(3, currentLevel + 1);
+            loadLevel(target);
+        });
+    }
+    // Hide any extra buttons that may exist outside our container (avoid duplicate Play Again)
+    const allButtons = winEl.querySelectorAll('button');
+    allButtons.forEach((b) => {
+        const isManaged = b.id === 'btn-replay' || b.id === 'btn-next' || b.parentElement?.id === 'win-actions';
+        if (!isManaged) b.style.display = 'none';
+    });
+    // Show/Hide Next button based on current level
+    const nextBtn = container.querySelector('#btn-next');
+    if (nextBtn) nextBtn.style.display = currentLevel < 3 ? 'inline-block' : 'none';
+}
+
 function checkWinCondition() {
     const distanceToGoal = new THREE.Vector2(
         marbleState.position.x - goal.position.x,
@@ -494,9 +1066,10 @@ function checkWinCondition() {
         if (winEl) winEl.style.display = 'block';
         playWinJingle();
         spawnConfetti(goal.position);
-        if (typeof spawnCoins === 'function') {
-            spawnCoins();
-        }
+        // Score already reflects coins collected; just ensure UI and high score update
+        if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+        updateHighScoreIfNeeded();
+        ensureWinOptions();
     }
 }
 
@@ -530,9 +1103,25 @@ function checkCoins() {
         if (d < marbleRadius + coinRadius * 0.8) {
             c.taken = true;
             platformGroup.remove(c.mesh);
+            coinsCollected += 1;
             score += 10;
             if (scoreEl) scoreEl.textContent = `Score: ${score}`;
+            // High score updates only when goal is reached
             playBeep(880, 0.08);
+        }
+    }
+}
+
+function checkSpikes() {
+    if (gameLost || gameWon || spikeCooldown > 0) return;
+    for (const s of spikes) {
+        const d = Math.hypot(marbleState.position.x - s.mesh.position.x, marbleState.position.z - s.mesh.position.z);
+        if (d < marbleRadius + (s.radius || 0.23)) {
+            // Spike penalty: reset to level spawn without ending the game
+            playBeep(220, 0.06);
+            resetToSpawnOnly();
+            spikeCooldown = 0.7; // seconds of invulnerability after spike
+            break;
         }
     }
 }
@@ -603,6 +1192,7 @@ function animate() {
     requestAnimationFrame(animate);
     
     const deltaTime = clock.getDelta();
+    if (spikeCooldown > 0) spikeCooldown = Math.max(0, spikeCooldown - deltaTime);
     
     // Timer update
     if (gameStarted && !gameWon && !gameLost) {
@@ -643,9 +1233,11 @@ function animate() {
     
     // Update physics
     updatePhysics(deltaTime);
+    updateMovingObstacles(deltaTime);
     // Collectibles check
     if (gameStarted && !gameWon && !gameLost) {
         checkCoins();
+        checkSpikes();
     }
     
     // Update point light position to follow marble
@@ -665,55 +1257,6 @@ function animate() {
 
 animate();
 
-// Confetti particles on win
-const confetti = { points: null, velocities: null, life: 0 };
-function spawnConfetti(pos) {
-    const count = 200;
-    const positions = new Float32Array(count * 3);
-    const velocities = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const r = Math.random() * 0.2;
-        positions[i*3+0] = pos.x + Math.cos(angle) * r;
-        positions[i*3+1] = pos.y + 0.2 + Math.random() * 0.2;
-        positions[i*3+2] = pos.z + Math.sin(angle) * r;
-        velocities[i*3+0] = (Math.random() - 0.5) * 1.2;
-        velocities[i*3+1] = Math.random() * 1.5 + 0.5;
-        velocities[i*3+2] = (Math.random() - 0.5) * 1.2;
-    }
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const colors = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-        colors[i*3+0] = 0.7 + 0.3*Math.random();
-        colors[i*3+1] = 0.7 + 0.3*Math.random();
-        colors[i*3+2] = 0.7 + 0.3*Math.random();
-    }
-    geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    const mat = new THREE.PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, opacity: 1.0 });
-    if (confetti.points) platformGroup.remove(confetti.points);
-    confetti.points = new THREE.Points(geom, mat);
-    confetti.velocities = velocities;
-    confetti.life = 2.0;
-    platformGroup.add(confetti.points);
-}
-
-function updateConfetti(dt) {
-    if (!confetti.points || confetti.life <= 0) return;
-    confetti.life -= dt;
-    const positions = confetti.points.geometry.getAttribute('position');
-    for (let i = 0; i < positions.count; i++) {
-        confetti.velocities[i*3+1] -= 3.0 * dt; // gravity
-        positions.array[i*3+0] += confetti.velocities[i*3+0] * dt;
-        positions.array[i*3+1] += confetti.velocities[i*3+1] * dt;
-        positions.array[i*3+2] += confetti.velocities[i*3+2] * dt;
-    }
-    confetti.points.material.opacity = Math.max(0, confetti.life / 2.0);
-    positions.needsUpdate = true;
-    if (confetti.life <= 0) {
-        platformGroup.remove(confetti.points);
-        confetti.points.geometry.dispose();
-        confetti.points.material.dispose();
-        confetti.points = null;
-    }
-}
+// Confetti removed: keep no-op hooks to avoid runtime errors
+function spawnConfetti(_pos) { /* no-op */ }
+function clearConfetti() { /* no-op */ }
