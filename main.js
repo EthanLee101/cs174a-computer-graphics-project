@@ -152,10 +152,12 @@ function rebuildPlatform(newSize) {
     const borderHeight = 0.5;
     const borderThickness = 0.3;
     borders = [
-        { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff0000 },
-        { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff8800 },
-        { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x0000aa },
-        { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x00aaaa }
+        // North/South: shorten length so they butt against vertical borders without overlap
+        { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff0000 },
+        { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff8800 },
+        // East/West: shorten length so they butt against horizontal borders without overlap
+        { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x0000aa },
+        { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x00aaaa }
     ];
     borders.forEach(border => {
         const geometry = new THREE.BoxGeometry(...border.size);
@@ -183,13 +185,13 @@ const borderThickness = 0.3;
 const borderMeshes = [];
 let borders = [
     // North (Red - controlled by Up arrow)
-    { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff0000 },
+    { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff0000 },
     // South (Orange - controlled by Down arrow)
-    { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent + borderThickness*2, borderHeight, borderThickness], color: 0xff8800 },
+    { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff8800 },
     // East (Dark Blue - controlled by Right arrow)
-    { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x0000aa },
+    { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x0000aa },
     // West (Teal - controlled by Left arrow)
-    { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent], color: 0x00aaaa }
+    { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x00aaaa }
 ];
 
 borders.forEach(border => {
