@@ -923,7 +923,7 @@ let spikeCooldown = 0;
 const cameraViews = {
     0: { pos: [0, 15, 15], target: [0, 0, 0], orbit: true },  // Free orbit
     1: { pos: [0, 20, 0], target: [0, 0, 0], orbit: false },   // Top view
-    2: { pos: [15, 5, 0], target: [0, 0, 0], orbit: false },   // Side view
+    2: { pos: [0, 12, 15], target: [0, 0, 0], orbit: false },   // Side view
     3: { pos: [10, 12, 10], target: [0, 0, 0], orbit: false }  // Angled view
 };
 
