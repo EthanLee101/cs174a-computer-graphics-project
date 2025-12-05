@@ -1370,10 +1370,10 @@ function animate() {
             platformTilt.targetX = Math.min(platformTilt.targetX + platformTilt.tiltSpeed, platformTilt.maxAngle);
         }
         if (keys.ArrowLeft) {
-            platformTilt.targetZ = Math.max(platformTilt.targetZ - platformTilt.tiltSpeed, -platformTilt.maxAngle);
+            platformTilt.targetZ = Math.min(platformTilt.targetZ + platformTilt.tiltSpeed, platformTilt.maxAngle);
         }
         if (keys.ArrowRight) {
-            platformTilt.targetZ = Math.min(platformTilt.targetZ + platformTilt.tiltSpeed, platformTilt.maxAngle);
+            platformTilt.targetZ = Math.max(platformTilt.targetZ - platformTilt.tiltSpeed, -platformTilt.maxAngle);
         }
         
         // Smoothly interpolate platform tilt
