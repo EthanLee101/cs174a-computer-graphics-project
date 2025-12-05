@@ -777,7 +777,7 @@ const platformTilt = {
     currentX: 0,
     currentZ: 0,
     tiltSpeed: 0.02, // Speed of tilt change with arrow keys
-    maxAngle: Math.PI / 2 // 90 degrees max (prevents upside-down)
+    maxAngle: Math.PI / 6 // ~30 degrees max tilt per axis
 };
 
 // Arrow key state
