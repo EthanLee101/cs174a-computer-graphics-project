@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
-// Scene setup
+// Scene
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
 
-// Camera setup
+// Camera
 const camera = new THREE.PerspectiveCamera(
     45,
     window.innerWidth / window.innerHeight,
@@ -16,7 +16,7 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(0, 15, 15);
 camera.lookAt(0, 0, 0);
 
-// Renderer setup with shadow mapping
+// Shadow mapping
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
@@ -25,12 +25,12 @@ document.body.appendChild(renderer.domElement);
 renderer.domElement.tabIndex = 0;
 renderer.domElement.focus();
 
-// Environment map for subtle glossy PBR look
+// Environment map (subtle glossy PBR look)
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environment = envTex;
 
-// Nicer background: radial gradient CanvasTexture (no renderer alpha changes)
+// Background (radial gradient)
 function createGradientBackground() {
     const size = 512;
     const canvas = document.createElement('canvas');
@@ -53,7 +53,6 @@ function createGradientBackground() {
 
 function ensureLoseOptions() {
     if (!loseEl) return;
-    // Find or create a Retry button and bind it to reload the current level
     let retry = loseEl.querySelector('#btn-lose-retry');
     if (!retry) {
         retry = loseEl.querySelector('button') || document.createElement('button');
@@ -74,11 +73,11 @@ function ensureLoseOptions() {
 
 scene.background = createGradientBackground();
 
-// Textures (load asynchronously and only apply on success)
+// Textures
 const textureLoader = new THREE.TextureLoader();
 let woodTex = null;
 try {
-    textureLoader.load('885.jpg', (tex) => {
+    textureLoader.load('wood_texture.jpg', (tex) => {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(3, 3);
         tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
@@ -89,21 +88,21 @@ try {
             platform.material.needsUpdate = true;
         }
     }, undefined, () => {
-        woodTex = null; // keep solid color fallback
+        woodTex = null;
     });
 } catch (e) { woodTex = null; }
 
 // OrbitControls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0, 0);
-controls.enabled = false; // Start with controls disabled
+controls.enabled = false; 
 controls.minDistance = 5;
 controls.maxDistance = 30;
 
-// Clock for physics
+// Clock 
 const clock = new THREE.Clock();
 
-// Lighting setup
+// Lighting 
 const ambientLight = new THREE.AmbientLight(0x404040, 0.65);
 scene.add(ambientLight);
 
@@ -142,14 +141,13 @@ let platform = new THREE.Mesh(platformGeometry, platformMaterial);
 platform.position.y = -0.25;
 platform.receiveShadow = true;
 platformGroup.add(platform);
-// If texture was already loaded before mesh creation, apply it now
+
 if (woodTex) {
     platform.material.map = woodTex;
     platform.material.needsUpdate = true;
 }
 
 function rebuildPlatform(newSize) {
-    // Remove old platform and borders
     if (platform) {
         platformGroup.remove(platform);
         platform.geometry.dispose();
@@ -161,7 +159,6 @@ function rebuildPlatform(newSize) {
     }
     borderMeshes.length = 0;
     platformSizeCurrent = newSize;
-    // Create new platform
     platformGeometry = new THREE.BoxGeometry(platformSizeCurrent, 0.5, platformSizeCurrent);
     platform = new THREE.Mesh(platformGeometry, platformMaterial);
     platform.position.y = -0.25;
@@ -171,14 +168,11 @@ function rebuildPlatform(newSize) {
         platform.material.map = woodTex;
         platform.material.needsUpdate = true;
     }
-    // Rebuild borders with updated positions/sizes
     const borderHeight = 0.5;
     const borderThickness = 0.3;
     borders = [
-        // North/South: shorten length so they butt against vertical borders without overlap
         { pos: [0, borderHeight/2, -platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff0000 },
         { pos: [0, borderHeight/2, platformSizeCurrent/2], size: [platformSizeCurrent - borderThickness, borderHeight, borderThickness], color: 0xff8800 },
-        // East/West: shorten length so they butt against horizontal borders without overlap
         { pos: [platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x0000aa },
         { pos: [-platformSizeCurrent/2, borderHeight/2, 0], size: [borderThickness, borderHeight, platformSizeCurrent - borderThickness], color: 0x00aaaa }
     ];
@@ -198,13 +192,10 @@ function rebuildPlatform(newSize) {
     });
 }
 
-// Platform border with color coding
 const borderHeight = 0.5;
 const borderThickness = 0.3;
 
-// Create borders with unique color for each side
-// North (Up arrow) = Red, South (Down arrow) = Orange
-// West (Left arrow) = Teal, East (Right arrow) = Dark Blue
+// Borders
 const borderMeshes = [];
 let borders = [
     // North (Red - controlled by Up arrow)
@@ -232,7 +223,7 @@ borders.forEach(border => {
     borderMeshes.push(mesh);
 });
 
-// Add Z-axis orientation vector (thin arrow pointing up)
+//Z-axis orientation vector (thin arrow pointing up)
 const arrowLength = 2.0;
 const arrowHeadLength = 0.4;
 const arrowHeadWidth = 0.2;
@@ -267,11 +258,9 @@ const wallThickness = 0.3;
 
 // Simple maze layout
 const walls = [
-    // Vertical walls
     { pos: [-2, wallHeight/2, -2], size: [wallThickness, wallHeight, 4] },
     { pos: [2, wallHeight/2, 2], size: [wallThickness, wallHeight, 4] },
     { pos: [0, wallHeight/2, 0], size: [wallThickness, wallHeight, 3] },
-    // Horizontal walls
     { pos: [-3, wallHeight/2, 1], size: [3, wallHeight, wallThickness] },
     { pos: [1, wallHeight/2, -3], size: [4, wallHeight, wallThickness] }
 ];
@@ -355,7 +344,6 @@ function spawnCoins() {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
-        // store base Y and a random phase so each coin bobs slightly out of sync
         const baseY = mesh.position.y;
         const phase = Math.random() * Math.PI * 2;
         coins.push({ mesh, taken: false, baseY, phase });
@@ -412,7 +400,6 @@ function buildWalls(defs) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
-        // add thin outline for definition
         try {
             const egeo = new THREE.EdgesGeometry(geometry, 30);
             const eline = new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x000000 }));
@@ -437,10 +424,9 @@ function spawnSpikes(positions) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
 
-        // single white stripe around the cone
         (function addStripe(spikeMesh) {
             const baseRadius = 0.15;
-            const t = 0.25; // fraction up the cone where stripe sits (0 = base, 1 = apex)
+            const t = 0.25; 
             const stripeRadius = Math.max(baseRadius * (1 - t), 0.05);
             const tube = 0.02;
 
@@ -452,7 +438,6 @@ function spawnSpikes(positions) {
                 emissiveIntensity: 0.05
             });
             const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-            // orient horizontal ring and position relative to cone base (ConeGeometry base is at y=0)
             stripe.rotation.x = Math.PI / 2;
             stripe.position.set(0, 0, 0);
             stripe.renderOrder = 2;
@@ -483,7 +468,6 @@ function spawnMovingObstacles(defs) {
         mesh.receiveShadow = true;
         platformGroup.add(mesh);
 
-        // outline for readability
         try {
             const egeo = new THREE.EdgesGeometry(geo, 30);
             const eline = new THREE.LineSegments(egeo, new THREE.LineBasicMaterial({ color: 0x2d1452 }));
@@ -548,17 +532,15 @@ function loadLevel(level) {
         spawnCoins();
         goal.position.set(3.5, 0.05, 3.5);
     } else if (level === 2) {
-        // Increase platform for level 2 (20% larger by default)
+        // Level 2 harder than level 1 
         rebuildPlatform(platformSizeBase * 1.2);
         currentLevel = 2;
-        // Build spiral using platform size with wider corridors and thinner walls
         const h = platformSizeCurrent / 2;
-        const clr = 1.1; // larger clearance from borders
-        const t = 0.25;  // thinner walls
-        const y = 0.25;  // wall center Y
+        const clr = 1.1; 
+        const t = 0.25;  
+        const y = 0.25;  
         const defs = [];
-        // Outer ring with west entrance gap and added gaps in north (top), south (bottom) and east (right) walls
-        // North (split with center gap)
+    
         {
             const gapW = 1.4, cx = 0;
             const xMin = -h + clr, xMax = h - clr;
@@ -567,7 +549,7 @@ function loadLevel(level) {
             if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - clr], size: [leftLen, 0.5, t] });
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - clr], size: [rightLen, 0.5, t] });
         }
-        // South (split with center gap)
+
         {
             const gapW = 1.4, cx = 0;
             const xMin = -h + clr, xMax = h - clr;
@@ -576,7 +558,7 @@ function loadLevel(level) {
             if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, -h + clr], size: [leftLen, 0.5, t] });
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + clr], size: [rightLen, 0.5, t] });
         }
-        // East (split with mid-lower gap)
+        
         {
             const gapW = 1.4, cz = -1.0;
             const zMin = -h + clr, zMax = h - clr;
@@ -585,18 +567,19 @@ function loadLevel(level) {
             if (seg1Len > 0.05) defs.push({ pos: [h - clr, y, zMin + seg1Len/2], size: [t, 0.5, seg1Len] });
             if (seg2Len > 0.05) defs.push({ pos: [h - clr, y, cz + gapW/2 + seg2Len/2], size: [t, 0.5, seg2Len] });
         }
-        // West split (wider entrance area)
+  
         defs.push({ pos: [-h + clr, y, 0.8], size: [t, 0.5, h - 0.4] });
         defs.push({ pos: [-h + clr, y, -h + 1.6], size: [t, 0.5, 2.2] });
-        // Spiral inward segments (more room between)
+  
         defs.push({ pos: [0, y, h - 2.6], size: [platformSizeCurrent - 4.2, 0.5, t] });
         defs.push({ pos: [h - 2.6, y, 0], size: [t, 0.5, platformSizeCurrent - 5.0] });
-        // Bottom-most inner horizontal (reverted to single piece)
+   
         defs.push({ pos: [0, y, -h + 2.0], size: [platformSizeCurrent - 5.2, 0.5, t] });
         defs.push({ pos: [-h + 2.4, y, 0], size: [t, 0.5, platformSizeCurrent - 6.2] });
         defs.push({ pos: [0, y, 0.8], size: [platformSizeCurrent - 8.2, 0.5, t] });
         buildWalls(defs);
-        // Spikes (offset further from walls and center) — remove the center-top spike near the red wall
+
+        // Spikes (offset further from walls and center) 
         spawnSpikes([
             new THREE.Vector3(-h + 1.6, 0, h - 2.0),
             new THREE.Vector3(h - 1.8, 0, h - 2.2),
@@ -605,7 +588,7 @@ function loadLevel(level) {
             new THREE.Vector3(h - 6, 0, h - 4),
             new THREE.Vector3(1.1, 0, 0.0)     
         ]);
-        // Coins (optional, safe spots away from spikes); removed the middle coin that intersected a wall
+        // Coins (optional, safe spots away from spikes)
         spawnCoinsAt([
             new THREE.Vector3(-h + 2.2, coinHeight/2, h - 2.6),
             new THREE.Vector3(-0.8, coinHeight/2, -0.8),
@@ -621,12 +604,11 @@ function loadLevel(level) {
         rebuildPlatform(platformSizeBase * 1.35);
         currentLevel = 3;
         const h = platformSizeCurrent / 2;
-        const clr = 1.3;   // more border clearance => wider outer corridors
-        const t = 0.25;    // thin walls to maximize corridor width
+        const clr = 1.3;   
+        const t = 0.25;    
         const y = 0.25;
         const defs = [];
-        // Outer ring with multiple gaps (north, east-upper, east-mid, south)
-        // North split
+     
         {
             const gapW = 1.4, cx = -0.6;
             const xMin = -h + clr, xMax = h - clr;
@@ -635,7 +617,7 @@ function loadLevel(level) {
             if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - clr], size: [leftLen, 0.5, t] });
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - clr], size: [rightLen, 0.5, t] });
         }
-        // South split (mid gap)
+      
         {
             const gapW = 1.6, cx = 0.8;
             const xMin = -h + clr, xMax = h - clr;
@@ -644,12 +626,12 @@ function loadLevel(level) {
             if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, -h + clr], size: [leftLen, 0.5, t] });
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + clr], size: [rightLen, 0.5, t] });
         }
-        // East splits: add two holes (upper and mid) on the outer east wall
+     
         {
             const zMin = -h + clr, zMax = h - clr;
             const gaps = [
-                { cz: 1.6, w: 1.6 }, // upper gap
-                { cz: 0.0, w: 1.2 }  // mid gap
+                { cz: 1.6, w: 1.6 }, 
+                { cz: 0.0, w: 1.2 }  
             ].sort((a,b)=>a.cz-b.cz);
             let cursor = zMin;
             for (let i = 0; i < gaps.length; i++) {
@@ -662,11 +644,10 @@ function loadLevel(level) {
             const tailLen = zMax - cursor;
             if (tailLen > 0.05) defs.push({ pos: [h - clr, y, cursor + tailLen/2], size: [t, 0.5, tailLen] });
         }
-        // West split entrance retained
+       
         defs.push({ pos: [-h + clr, y, 1.2], size: [t, 0.5, h - 0.8] });
         defs.push({ pos: [-h + clr, y, -h + 1.8], size: [t, 0.5, 2.4] });
-        // Inner spirals wider and denser (added segments) with holes for alternate routes
-        // Top inner horizontal at z = h-2.8 with a gap near center-right
+     
         {
             const L = platformSizeCurrent - 4.6;
             const gapW = 1.2, cx = 0.2;
@@ -676,7 +657,7 @@ function loadLevel(level) {
             if (leftLen > 0.05) defs.push({ pos: [xMin + leftLen/2, y, h - 2.8], size: [leftLen, 0.5, t] });
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, h - 2.8], size: [rightLen, 0.5, t] });
         }
-        // Right inner vertical at x = h-2.8 with a mid gap
+     
         {
             const H = platformSizeCurrent - 5.2;
             const gapW = 1.0, cz = 0.6;
@@ -686,7 +667,7 @@ function loadLevel(level) {
             if (lowerLen > 0.05) defs.push({ pos: [h - 2.8, y, zMin + lowerLen/2], size: [t, 0.5, lowerLen] });
             if (upperLen > 0.05) defs.push({ pos: [h - 2.8, y, cz + gapW/2 + upperLen/2], size: [t, 0.5, upperLen] });
         }
-        // Bottom inner horizontal at z = -h+2.4 with a gap slightly right of center
+    
         {
             const L = platformSizeCurrent - 5.8;
             const gapW = 1.2, cx = 0.8;
@@ -697,7 +678,7 @@ function loadLevel(level) {
             if (rightLen > 0.05) defs.push({ pos: [cx + gapW/2 + rightLen/2, y, -h + 2.4], size: [rightLen, 0.5, t] });
         }
         defs.push({ pos: [-h + 2.4, y, 0], size: [t, 0.5, platformSizeCurrent - 6.6] });
-        // Middle inner horizontal at z = 0.8 with a gap toward the right side
+
         {
             const L = platformSizeCurrent - 8.8;
             const gapW = 1.2, cx = 1.6;
@@ -710,10 +691,6 @@ function loadLevel(level) {
         defs.push({ pos: [h - 3.6, y, 0.4], size: [t, 0.5, 2.0] }); // small inner post to force pathing
         buildWalls(defs);
         // Moving obstacles: three purple bars that run along corridors adjacent to walls
-        // m1: runs horizontally along the corridor below the north inner wall
-        // m2: runs vertically along the right-side inner corridor
-        // m3: runs horizontally along the corridor above the south inner wall
-        // m4: NEW – centered horizontal runner just below the central spike area
         spawnMovingObstacles([
             { pos: [0.0, 0.25, h - 3.4], size: [1.4, 0.5, 0.3], axis: 'x', range: 2.0, speed: 2.1 },
             { pos: [h - 3.2, 0.25, 0.0], size: [0.3, 0.5, 1.3], axis: 'z', range: 2.0, speed: 1.9 },
@@ -764,9 +741,9 @@ const marbleState = {
     angularVelocity: new THREE.Vector3(0, 0, 0)
 };
 
-// Physics constants
-const GRAVITY = 20.0; // Increased for faster movement
-const FRICTION = 0.96; // Reduced for less resistance
+// Physics constants (custom)
+const GRAVITY = 20.0; 
+const FRICTION = 0.96; 
 const BOUNCE_DAMPING = 0.5;
 const ROLLING_RESISTANCE = 0.99;
 
@@ -776,8 +753,8 @@ const platformTilt = {
     targetZ: 0,
     currentX: 0,
     currentZ: 0,
-    tiltSpeed: 0.02, // Speed of tilt change with arrow keys
-    maxAngle: Math.PI / 6 // ~30 degrees max tilt per axis
+    tiltSpeed: 0.02, 
+    maxAngle: Math.PI / 6 
 };
 
 // Arrow key state
@@ -793,9 +770,9 @@ let gameWon = false;
 let gameLost = false;
 let gameStarted = false;
 let isPaused = false;
-let timeRemaining = 90; // seconds (1:30)
-let currentCameraView = 3; // Start with angled view
-let startButtonClicked = false; // Only allow pause after Start button is clicked
+let timeRemaining = 90; 
+let currentCameraView = 3; 
+let startButtonClicked = false; 
 
 const timerEl = document.getElementById('timer');
 const scoreEl = document.getElementById('score');
@@ -817,12 +794,10 @@ function setOverlayMessage(msg, showStartButton = false) {
         msgEl.style.fontSize = '20px';
         msgEl.style.textAlign = 'center';
         msgEl.style.marginBottom = '8px';
-        // Insert message at top of overlay so any start button (if present) stays visible
         startOverlayEl.insertBefore(msgEl, startOverlayEl.firstChild);
     }
     if (msg) {
         msgEl.textContent = msg;
-        // Also update the static paragraph to generic allowed-time phrasing when pausing
         const p = startOverlayEl.querySelector('p');
         if (p) p.textContent = 'Reach the goal within the allowed time.';
         startOverlayEl.style.display = 'block';
@@ -844,7 +819,7 @@ function styleHudItem(el) {
     el.style.display = 'inline-block';
     el.style.minWidth = '120px';
 }
-// Create a unified top-center HUD bar for timer, score, high score
+// Top HUD 
 let topBar = document.getElementById('hud-topbar');
 if (!topBar) {
     topBar = document.createElement('div');
@@ -866,7 +841,7 @@ if (!topBar) {
     topBar.style.backdropFilter = 'none';
     document.body.appendChild(topBar);
 }
-// Ensure timer and score exist, style them and move into the top bar
+
 if (timerEl) {
     styleHudItem(timerEl);
     timerEl.style.fontWeight = '700';
@@ -916,21 +891,21 @@ function updateHighScoreIfNeeded() {
     if (score > hs) { setHighScore(currentLevel, score); updateHighScoreUI(); }
 }
 
-// Spike cooldown to prevent immediate re-trigger after respawn
+// Spike cooldown 
 let spikeCooldown = 0;
 
 // Camera views
 const cameraViews = {
-    0: { pos: [0, 15, 15], target: [0, 0, 0], orbit: true },  // Free orbit
-    1: { pos: [0, 20, 0], target: [0, 0, 0], orbit: false },   // Top view
-    2: { pos: [0, 12, 15], target: [0, 0, 0], orbit: false },   // Side view
-    3: { pos: [10, 12, 10], target: [0, 0, 0], orbit: false }  // Angled view
+    0: { pos: [0, 15, 15], target: [0, 0, 0], orbit: true },  
+    1: { pos: [0, 20, 0], target: [0, 0, 0], orbit: false },   
+    2: { pos: [0, 12, 15], target: [0, 0, 0], orbit: false },   
+    3: { pos: [10, 12, 10], target: [0, 0, 0], orbit: false }  
 };
 
 // Per-level spawn points
 function levelSpawn(level) {
-    if (level === 2 || level === 3) return new THREE.Vector3(-platformSizeCurrent/2 + 0.8, marbleRadius, platformSizeCurrent/2 - 0.8); // top-left near corner with clearance
-    return new THREE.Vector3(-3.5, marbleRadius, -3.5); // default for level 1
+    if (level === 2 || level === 3) return new THREE.Vector3(-platformSizeCurrent/2 + 0.8, marbleRadius, platformSizeCurrent/2 - 0.8); 
+    return new THREE.Vector3(-3.5, marbleRadius, -3.5); 
 }
 
 // Lightweight spawn reset (used for spikes)
@@ -939,7 +914,6 @@ function resetToSpawnOnly() {
     marbleState.position.copy(sp);
     marbleState.velocity.set(0, 0, 0);
     marbleState.angularVelocity.set(0, 0, 0);
-    // Keep tilt, timer, score, and overlays as-is
 }
 
 // Initialize marble position
@@ -948,7 +922,6 @@ function resetMarble() {
     marbleState.position.copy(sp);
     marbleState.velocity.set(0, 0, 0);
     marbleState.angularVelocity.set(0, 0, 0);
-    // Immediately sync the visible marble mesh to the spawn position
     if (typeof marble !== 'undefined' && marble && marble.position) {
         marble.position.copy(sp);
         marble.quaternion.set(0, 0, 0, 1);
@@ -975,19 +948,15 @@ function resetMarble() {
     }
     if (winEl) winEl.style.display = 'none';
     if (loseEl) loseEl.style.display = 'none';
-    // Show the overlay with initial start message and show the start button
     setOverlayMessage('Press Space to Start', true);
     // Reset platform tilt and camera view
     platformTilt.targetX = platformTilt.targetZ = 0;
     platformTilt.currentX = platformTilt.currentZ = 0;
     setCameraView(3);
-    // Clear any confetti from a previous win
     clearConfetti();
-    // Respawn collectibles for Level 1 only
     if (currentLevel === 1 && typeof spawnCoins === 'function') {
         spawnCoins();
     }
-    // Refresh high score display for current level
     updateHighScoreUI();
 }
 
@@ -1041,11 +1010,10 @@ window.addEventListener('keydown', (e) => {
 
 // Keyboard controls
 document.addEventListener('keydown', (event) => {
-    const key = event.key; // preserve ArrowUp/ArrowDown etc.
+    const key = event.key; 
     const lower = key.toLowerCase();
     
     if (key === 'Escape' || key === 'Esc' || key == 'e') {
-        // If resetting during a pause, unpause and hide overlay
         if (isPaused) {
             isPaused = false;
             setOverlayMessage('', false);
@@ -1066,7 +1034,6 @@ document.addEventListener('keydown', (event) => {
         setCameraView(parseInt(lower));
         event.preventDefault();
     } else if (lower === 'r') {
-        // If resetting during a pause, unpause and hide overlay
         if (isPaused) {
             isPaused = false;
             setOverlayMessage('', false);
@@ -1074,7 +1041,7 @@ document.addEventListener('keydown', (event) => {
         resetMarble();
         event.preventDefault();
     }
-    // Dev: cycle levels with 'N'
+    // Change levels with N
     if (lower === 'n') {
         const next = currentLevel >= 3 ? 1 : currentLevel + 1;
         loadLevel(next);
@@ -1090,18 +1057,17 @@ window.addEventListener('keyup', (event) => {
     }
 });
 
-// Window resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Improved collision detection in platform local space
+// Collision Detection 
 function checkWallCollisions() {
     for (let i = 0; i < wallData.length; i++) {
         const w = wallData[i];
-        const c = marbleState.position; // already in platform local space
+        const c = marbleState.position; 
         const min = new THREE.Vector3(w.center.x - w.half.x, w.center.y - w.half.y, w.center.z - w.half.z);
         const max = new THREE.Vector3(w.center.x + w.half.x, w.center.y + w.half.y, w.center.z + w.half.z);
         const closest = new THREE.Vector3(
@@ -1145,7 +1111,7 @@ function checkWallCollisions() {
     }
     
     // Invisible ceiling to prevent ball from falling out at high tilts
-    const ceilingHeight = 5.0; // Height of invisible ceiling
+    const ceilingHeight = 5.0; 
     if (marbleState.position.y > ceilingHeight) {
         marbleState.position.y = ceilingHeight;
         marbleState.velocity.y = 0;
@@ -1168,7 +1134,6 @@ function ensureWinOptions() {
         container.style.marginTop = '10px';
         container.style.display = 'flex';
         container.style.gap = '8px';
-        // Reuse an existing 'Play Again' button if present, otherwise create
         let replay = winEl.querySelector('#btn-replay');
         if (!replay) {
             replay = document.createElement('button');
@@ -1185,7 +1150,6 @@ function ensureWinOptions() {
         container.appendChild(next);
         winEl.appendChild(container);
         replay.addEventListener('click', () => {
-            // Reload current level layout and reset fully
             loadLevel(currentLevel);
         });
         next.addEventListener('click', () => {
@@ -1193,13 +1157,11 @@ function ensureWinOptions() {
             loadLevel(target);
         });
     }
-    // Hide any extra buttons that may exist outside our container (avoid duplicate Play Again)
     const allButtons = winEl.querySelectorAll('button');
     allButtons.forEach((b) => {
         const isManaged = b.id === 'btn-replay' || b.id === 'btn-next' || b.parentElement?.id === 'win-actions';
         if (!isManaged) b.style.display = 'none';
     });
-    // Show/Hide Next button based on current level
     const nextBtn = container.querySelector('#btn-next');
     if (nextBtn) nextBtn.style.display = currentLevel < 3 ? 'inline-block' : 'none';
 }
@@ -1215,7 +1177,6 @@ function checkWinCondition() {
         if (winEl) winEl.style.display = 'block';
         playWinJingle();
         spawnConfetti(goal.position);
-        // Score already reflects coins collected; just ensure UI and high score update
         if (scoreEl) scoreEl.textContent = `Score: ${score}`;
         updateHighScoreIfNeeded();
         ensureWinOptions();
@@ -1269,7 +1230,7 @@ function checkSpikes() {
             // Spike penalty: reset to level spawn without ending the game
             playBeep(220, 0.06);
             resetToSpawnOnly();
-            spikeCooldown = 0.7; // seconds of invulnerability after spike
+            spikeCooldown = 0.7; 
             break;
         }
     }
@@ -1278,8 +1239,7 @@ function checkSpikes() {
 // Physics update
 function updatePhysics(deltaTime) {
     if (gameWon || gameLost || !gameStarted || isPaused) return;
-    
-    // Clamp delta time to prevent large jumps
+
     deltaTime = Math.min(deltaTime, 0.066);
     
     // Determine substeps based on speed to avoid tunneling
@@ -1289,14 +1249,11 @@ function updatePhysics(deltaTime) {
     const dt = deltaTime / steps;
     
     for (let i = 0; i < steps; i++) {
-        // Get platform rotation in world space
         const rotationMatrix = new THREE.Matrix4();
         rotationMatrix.makeRotationFromEuler(platformGroup.rotation);
-        
         // Calculate gravity direction based on platform tilt
         const gravityDir = new THREE.Vector3(0, -1, 0);
         gravityDir.applyMatrix4(rotationMatrix);
-        
         // Apply gravity force (project onto platform)
         const gravityForce = new THREE.Vector3(
             -gravityDir.x * GRAVITY,
@@ -1316,7 +1273,6 @@ function updatePhysics(deltaTime) {
             checkWallCollisions();
         }
         
-        // Simple swept correction: if a large correction happened, damp velocity along that axis
         const delta = marbleState.position.clone().sub(prevPos);
         if (Math.abs(delta.x) < 1e-3 && Math.abs(marbleState.velocity.x) > 0) marbleState.velocity.x *= 0.7;
         if (Math.abs(delta.z) < 1e-3 && Math.abs(marbleState.velocity.z) > 0) marbleState.velocity.z *= 0.7;
@@ -1338,10 +1294,8 @@ function updatePhysics(deltaTime) {
 
 function animate() {
     requestAnimationFrame(animate);
-    
     const deltaTime = clock.getDelta();
 
-    // Only advance cooldowns, timer and physics when not paused
     if (!isPaused) {
         if (spikeCooldown > 0) spikeCooldown = Math.max(0, spikeCooldown - deltaTime);
     
@@ -1376,7 +1330,7 @@ function animate() {
             platformTilt.targetZ = Math.max(platformTilt.targetZ - platformTilt.tiltSpeed, -platformTilt.maxAngle);
         }
         
-        // Smoothly interpolate platform tilt
+        // Interpolation
         platformTilt.currentX += (platformTilt.targetX - platformTilt.currentX) * 0.1;
         platformTilt.currentZ += (platformTilt.targetZ - platformTilt.currentZ) * 0.1;
         
@@ -1393,7 +1347,6 @@ function animate() {
         }
     }
 
-    // Update point light position to follow marble even when paused (keeps visuals consistent)
     pointLight.position.set(
         marbleState.position.x,
         marbleState.position.y + 3,
@@ -1402,20 +1355,17 @@ function animate() {
     
     if (typeof goal !== 'undefined' && goal) {
         const t = clock.elapsedTime;
-        const pulse = 0.5 + 0.5 * Math.sin(t * 2.0); // 2Hz pulsing in range 0..1
+        const pulse = 0.5 + 0.5 * Math.sin(t * 2.0); 
 
-        // Prefer material.emissiveIntensity if available, otherwise modulate emissive color
         if ('emissiveIntensity' in goal.material) {
-            goal.material.emissiveIntensity = 0.25 + 0.6 * pulse; // tweak range as needed
+            goal.material.emissiveIntensity = 0.25 + 0.6 * pulse; 
         } else {
             const base = new THREE.Color(0x27ae60);
-            // scale the base emissive color by a factor
             const factor = 0.15 + 0.85 * pulse;
             goal.material.emissive.copy(base).multiplyScalar(factor);
         }
         goal.material.needsUpdate = true;
 
-        // If you created a halo mesh and stored it on goal.userData.glow, pulse its opacity/scale too
         if (goal.userData && goal.userData.glow) {
             const g = goal.userData.glow;
             g.material.opacity = 0.06 + 0.2 * pulse;
@@ -1428,8 +1378,8 @@ function animate() {
 
     if (coins && coins.length) {
         const t = clock.elapsedTime;
-        const amp = 0.08;   // bob amplitude in world units
-        const freq = 0.5;   // bob frequency (Hz)
+        const amp = 0.08;   
+        const freq = 0.5;   
         for (const c of coins) {
             if (c.taken || !c.mesh) continue;
             const phase = c.phase || 0;
@@ -1448,18 +1398,14 @@ function animate() {
             const freq = ud.wobbleFreq || 1;
             const tilt = ud.wobbleTilt || 0.05;
 
-            // vertical bob (doesn't affect collision logic which uses x/z)
             m.position.y = (ud.baseY ?? m.position.y) + wobAmp * Math.sin(tt * Math.PI * 2 * freq + phase);
 
-            // gentle rocking/tilt for a vibrating look
             m.rotation.x = tilt * Math.sin(tt * Math.PI * 2 * freq * 1.05 + phase * 1.3);
             m.rotation.z = tilt * Math.cos(tt * Math.PI * 2 * freq * 0.95 + phase * 0.7);
         }
     }
 
-    // (Follow camera removed)
 
-    // Update controls if enabled
     if (controls.enabled) {
         controls.update();
     }
@@ -1469,6 +1415,5 @@ function animate() {
 
 animate();
 
-// Confetti removed: keep no-op hooks to avoid runtime errors
 function spawnConfetti(_pos) { /* no-op */ }
 function clearConfetti() { /* no-op */ }

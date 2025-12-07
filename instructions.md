@@ -9,7 +9,7 @@ Each team is expected to implement interactive graphics and/or mouse picking + m
 
 ## What counts as advanced features:
 
-• Ray tracing
+• Ray tracing  
 • Shadowing
 • Collision detection
 • Physics-based simulation
